@@ -32,7 +32,7 @@ int main(int argc, char **argv) {
         usage();
 
     PGconn *pgConn = PQconnectdb(pg_conn_string);
-    if (pgConn==NULL) {
+    if (PQstatus(pgConn) != CONNECTION_OK) {
 
         LogError((char*)"Error connecting to database\n");
         exit(255);
