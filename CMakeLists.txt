@@ -25,6 +25,10 @@ set(SOURCE_FILES
         ./src/nfprof.c
         ./src/grammar.c
         ./src/minilzo.c
-        src/netflow.cpp)
-add_executable(nfproc ${SOURCE_FILES})
-target_link_libraries(nfproc pq)
+        src/netflow.cpp
+        src/IniReader.cpp
+        src/IniReader.h
+        src/ini.c
+        src/ini.h)
+add_executable(nf2postgres ${SOURCE_FILES})
+target_link_libraries(nf2postgres pq)

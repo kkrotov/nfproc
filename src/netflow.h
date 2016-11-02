@@ -21,8 +21,8 @@ extern "C" {
 
 typedef enum {
 
-    FLOW_LOCAL,
-    FLOW_INET
+    FLOW_INET,
+    FLOW_LOCAL
 
 } NetFlowType;
 
@@ -43,18 +43,18 @@ class AddressBook {
 
     std::vector<AddressRec> addr_rec;
 public:
-    ~AddressBook() {
-        int i=0;
-    };
+    bool error= false;
+
     AddressBook(PGconn *conn) {
 
-        if (!createTable (conn))
-            return ;
+//        if (!createTable (conn))
+//            return ;
 
         std::string sql = "select id, source_addr::cidr, type, ignored from address_book";
         PGresult *res = PQexec(conn, sql.c_str());
         if (PQresultStatus(res) != PGRES_TUPLES_OK) {
 
+            error = true;
             LogError((char*)"Error retrieving address book records: %s\n", PQresultErrorMessage(res));
             return;
         }
@@ -109,7 +109,7 @@ public:
 class NetFlow {
 
 public:
-    time_t datetime;
+    time_t timestamp;
     std::string router_ip;
     std::string source_addr;
     unsigned long in_bytes,
@@ -119,27 +119,30 @@ public:
 };
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-class NetStat : AddressBook {
+class NetStat : public AddressBook {
 
     PGconn * pgConn=NULL;
     extension_map_list_t *extension_map_list;
     master_record_t		*master_record;
     stat_record_t 		stat_record;
     std::map<std::string, NetFlow> net_flow_map;
-    //std::shared_ptr<AddressBook> addressBook;
-    char *temp_csv_file_path = (char*)"/tmp/netflow.csv";
+    time_t tm_min, tm_max;
+    unsigned reccount;
 
 public:
-    NetStat (PGconn *conn) : AddressBook(conn) { this->pgConn=conn; };
-    bool createTable();
+    NetStat (PGconn *conn) : AddressBook(conn) { this->pgConn=conn; reccount=0; };
+    unsigned RecordsProcessed() { return reccount;};
+    bool createTable(std::string relname);
     bool CopyNetFlow(char *filename);
     bool ReadNetFlow(char *rfile);
     bool SaveNetFlow (std::string csvfilepath);
-    bool CopyNetFlow ();
+    bool CopyNetFlow (time_t timestamp);
     //bool ProcessNetFlow();
     bool CopyNetFlow (char *rel_name, char *filename);
     unsigned ProcessDataBlock (nffile_t *nffile_r);
-    void addNetPeer (std::string source_addr, NetFlowType type, unsigned long in_bytes, unsigned long out_bytes);
+    void addNetPeer (std::string source_addr, time_t datetime, NetFlowType type, unsigned long in_bytes, unsigned long out_bytes);
+    std::string rel_name(time_t);
+    bool sameMonth(time_t time1, time_t time2);
 };
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////
