@@ -131,8 +131,8 @@ class NetStat : public AddressBook {
 public:
     NetStat (PGconn *conn) : AddressBook(conn) { this->pgConn=conn; reccount=0; };
     unsigned RecordsProcessed() { return reccount;};
-    bool tableExists(std::string relname);
-    bool createTable(std::string relname);
+    bool tableExists(std::string schema, std::string relname);
+    bool createTable(std::string schema, std::string relname);
     bool CopyNetFlow(char *filename);
     bool ReadNetFlow(char *rfile);
     bool SaveNetFlow (std::string csvfilepath);
@@ -141,7 +141,7 @@ public:
     bool CopyNetFlow (char *rel_name, char *filename);
     unsigned ProcessDataBlock (nffile_t *nffile_r);
     void addNetPeer (std::string source_addr, time_t datetime, NetFlowType type, unsigned long in_bytes, unsigned long out_bytes);
-    std::string rel_name(time_t);
+    std::string rel_name(std::string suffix, time_t);
     bool sameMonth(time_t time1, time_t time2);
 };
 

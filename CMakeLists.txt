@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.6)
+cmake_minimum_required(VERSION 2.8)
 project(nfproc)
 
 include_directories(/usr/pgsql-9.4/include) # libs/jsoncpp-master/include libs/boost)

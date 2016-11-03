@@ -27,29 +27,30 @@ bool NetStat::sameMonth(time_t time1, time_t time2) {
     return tm1->tm_mon==tm2->tm_mon;
 }
 
-std::string NetStat::rel_name(time_t datetime) {
+std::string NetStat::rel_name(std::string suffix, time_t datetime) {
 
     struct tm *temp = localtime(&datetime);
     char relname[128];
-    snprintf (relname, sizeof(relname), "traf_flow_1h_%4d%02d", temp->tm_year+1900, temp->tm_mon+1);
+    std::string format = "traf_flow_"+suffix+"_%4d%02d";
+    snprintf (relname, sizeof(relname), format.c_str(), temp->tm_year+1900, temp->tm_mon+1);
     return std::string(relname);
 }
 
-bool NetStat::tableExists(std::string relname) {
+bool NetStat::tableExists(std::string schema, std::string relname) {
 
-    std::string check = "SELECT to_regclass('" + relname + "')";
+    std::string check = "SELECT EXISTS(SELECT * FROM information_schema.tables WHERE table_schema = '"+schema+"' AND table_name = '"+relname+"')";
+//            "SELECT to_regclass('" + relname + "')";
     PGresult *res = PQexec(pgConn, check.c_str());
     if ((PQresultStatus(res)==PGRES_TUPLES_OK) && (PQntuples(res)>0)) {
 
         std::string s = PQgetvalue(res, 0, 0);
-        return s.size()>0;
+        return s=="t";
     }
     return false;
 }
 
-bool NetStat::createTable(std::string relname) {
+bool NetStat::createTable(std::string schema, std::string relname) {
 
-    std::string schema ="public";
     std::string sql = "SET client_min_messages = error;"
                       "CREATE TABLE IF NOT EXISTS "+schema+"."+relname+"() INHERITS ("+schema+".traf_flow);"
                       "ALTER TABLE "+relname+" OWNER TO postgres;"
@@ -80,8 +81,13 @@ bool NetStat::CopyNetFlow (char *rel_name, char *filename) {
 
 bool NetStat::CopyNetFlow (time_t timestamp) {
 
-    std::string relname = rel_name(timestamp);
-    if (!tableExists(relname) && !createTable(relname))
+    std::string schema ="public";
+    std::string relname = rel_name("1d", timestamp);
+    if (!tableExists(schema, relname) && !createTable(schema, relname))
+        return false;
+
+    relname = rel_name("1h", timestamp);
+    if (!tableExists(schema, relname) && !createTable(schema, relname))
         return false;
 
     std::string sql = "COPY " + relname + " FROM STDIN DELIMITER ',' CSV header";
