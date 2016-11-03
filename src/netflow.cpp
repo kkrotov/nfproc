@@ -31,17 +31,31 @@ std::string NetStat::rel_name(time_t datetime) {
 
     struct tm *temp = localtime(&datetime);
     char relname[128];
-    snprintf (relname, sizeof(relname), "public.net_flow_%4d%02d", temp->tm_year+1900, temp->tm_mon+1);
+    snprintf (relname, sizeof(relname), "traf_flow_1h_%4d%02d", temp->tm_year+1900, temp->tm_mon+1);
     return std::string(relname);
+}
+
+bool NetStat::tableExists(std::string relname) {
+
+    std::string check = "SELECT to_regclass('" + relname + "')";
+    PGresult *res = PQexec(pgConn, check.c_str());
+    if ((PQresultStatus(res)==PGRES_TUPLES_OK) && (PQntuples(res)>0)) {
+
+        std::string s = PQgetvalue(res, 0, 0);
+        return s.size()>0;
+    }
+    return false;
 }
 
 bool NetStat::createTable(std::string relname) {
 
+    std::string schema ="public";
     std::string sql = "SET client_min_messages = error;"
-                      "CREATE TABLE IF NOT EXISTS "+relname+"() INHERITS (public.net_flow);"
-                      "ALTER TABLE "+relname+" OWNER TO postgres";
+                      "CREATE TABLE IF NOT EXISTS "+schema+"."+relname+"() INHERITS ("+schema+".traf_flow);"
+                      "ALTER TABLE "+relname+" OWNER TO postgres;"
+                      "CREATE INDEX "+relname+"_idx ON "+schema+"."+relname+" USING btree (datetime, ip_addr);";
     PGresult *res = PQexec(pgConn, sql.c_str());
-//            PQexec(pgConn, "CREATE TABLE IF NOT EXISTS net_flow(datetime timestamp without time zone,router_ip inet,source_addr inet,in_bytes bigint,out_bytes bigint,type integer);"
+//            PQexec(pgConn, "CREATE TABLE IF NOT EXISTS net_flow(datetime timestamp without time zone,router_ip inet,ip_addr inet,in_bytes bigint,out_bytes bigint,type integer);"
 //            "ALTER TABLE net_flow OWNER TO postgres;");
     if (PQresultStatus(res) != PGRES_COMMAND_OK) {
 
@@ -67,7 +81,7 @@ bool NetStat::CopyNetFlow (char *rel_name, char *filename) {
 bool NetStat::CopyNetFlow (time_t timestamp) {
 
     std::string relname = rel_name(timestamp);
-    if (!createTable(relname))
+    if (!tableExists(relname) && !createTable(relname))
         return false;
 
     std::string sql = "COPY " + relname + " FROM STDIN DELIMITER ',' CSV header";
@@ -79,7 +93,7 @@ bool NetStat::CopyNetFlow (time_t timestamp) {
         return false;
     }
     char csvline[1024];
-    strcpy(csvline, "datetime,router_ip,source_addr,in_bytes,out_bytes,type\n");
+    strcpy(csvline, "datetime,router_ip,ip_addr,in_bytes,out_bytes,type\n");
     int ret = PQputCopyData (pgConn, csvline, strlen(csvline));
     unsigned recordscopied = 0;
     for (auto it=net_flow_map.begin(); it!=net_flow_map.end() && ret>=0; ++it) {

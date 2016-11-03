@@ -30,7 +30,7 @@ typedef enum {
 class AddressRec {
 
 public:
-    int id;
+//    int id;
 //    struct in_addr addr;
     std::string host_ip;
     unsigned int host_mask;
@@ -50,7 +50,7 @@ public:
 //        if (!createTable (conn))
 //            return ;
 
-        std::string sql = "select id, source_addr::cidr, type, ignored from address_book";
+        std::string sql = "select ip_addr::cidr, type, ignored from traf_settings";
         PGresult *res = PQexec(conn, sql.c_str());
         if (PQresultStatus(res) != PGRES_TUPLES_OK) {
 
@@ -61,10 +61,9 @@ public:
         AddressRec rec;
         for (int i=0; i<PQntuples(res); i++) {
 
-            rec.id = atoi(PQgetvalue(res, i, 0));
-            std::string cidr = PQgetvalue(res, i, 1);
-            rec.type = (NetFlowType)atoi(PQgetvalue(res, i, 2));
-            rec.ignored = ('t' == *PQgetvalue(res, i, 3));
+            std::string cidr = PQgetvalue(res, i, 0);
+            rec.type = (NetFlowType)atoi(PQgetvalue(res, i, 1));
+            rec.ignored = ('t' == *PQgetvalue(res, i, 2));
 
             std::size_t pos = cidr.find('/');
             if (pos>0) {
@@ -84,10 +83,10 @@ public:
     };
     bool createTable (PGconn *conn) {
 
-        PGresult *res = PQexec(conn, "CREATE TABLE IF NOT EXISTS address_book(id integer,source_addr inet,type integer,ignored boolean);ALTER TABLE address_book OWNER TO postgres;");
+        PGresult *res = PQexec(conn, "CREATE TABLE IF NOT EXISTS traf_settings(ip_addr inet,type integer,ignored boolean);ALTER TABLE traf_settings OWNER TO postgres;");
         if (PQresultStatus(res) != PGRES_COMMAND_OK) {
 
-            LogError((char*)"Error creating data table address_book: %s\n", PQresultErrorMessage(res));
+            LogError((char*)"Error creating data table traf_settings: %s\n", PQresultErrorMessage(res));
             return false;
         }
     };
@@ -132,6 +131,7 @@ class NetStat : public AddressBook {
 public:
     NetStat (PGconn *conn) : AddressBook(conn) { this->pgConn=conn; reccount=0; };
     unsigned RecordsProcessed() { return reccount;};
+    bool tableExists(std::string relname);
     bool createTable(std::string relname);
     bool CopyNetFlow(char *filename);
     bool ReadNetFlow(char *rfile);
