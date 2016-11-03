@@ -49,7 +49,10 @@ int main(int argc, char **argv) {
         LogError((char*)"Can't load '%s'\n",configfile);
         exit(1);
     }
-    pg_conn_string = iniReader.Get("db","connect","");
+    std::string host = iniReader.Get("db","host","127.0.0.1");
+    std::string dbname = iniReader.Get("db","dbname","");
+    std::string user = iniReader.Get("db","user","");
+    std::string password = iniReader.Get("db","password","");
     std::string logPath = iniReader.Get("log","path","");
     logStream = freopen (logPath.c_str(), "a", stderr);
     if (logStream==NULL) {
@@ -57,6 +60,7 @@ int main(int argc, char **argv) {
         LogError((char*)"Unable to open log path \"%s\"", logPath.c_str());
         exit(1);
     }
+    pg_conn_string = "host="+host+" dbname="+dbname+" user="+user+" password="+password;
     PGconn *pgConn = PQconnectdb(pg_conn_string.c_str());
     if (PQstatus(pgConn) != CONNECTION_OK) {
 
