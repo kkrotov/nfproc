@@ -13,6 +13,11 @@ bool NetStat::CopyNetFlow(char *filename) {
     if (!ReadNetFlow(filename))
         return false;
 
+    if (net_flow_map.size()==0) {
+
+        LogError((char*)"Net flow array is empty");
+        return true;
+    }
     bool success = CopyNetFlow (tm_min);
     if (!success || sameMonth(tm_min, tm_max))
         return success;
@@ -223,23 +228,36 @@ unsigned NetStat::ProcessDataBlock (nffile_t *nffile_r) {
                 char dest_ip[INET6_ADDRSTRLEN];
                 get_da(master_record,dest_ip,sizeof(dest_ip));
 
+//                if (strcmp(source_ip,"85.94.32.50") && strcmp(dest_ip,"85.94.32.50"))
+//                    break;
+//
                 rec_count++;
 
-                // if both ip peers are local skip the record
                 AddressRec *source_rec = get(source_ip);
                 AddressRec *dest_rec = get(dest_ip);
-                if (source_rec!= nullptr && source_rec->type==NetFlowType::FLOW_LOCAL && dest_rec!= nullptr && dest_rec->type==NetFlowType::FLOW_LOCAL)
-                    break;  // skip LOCAL -> LOCAL
+                if (source_rec!= nullptr) {
 
-                if (source_rec!= nullptr && source_rec->ignored || dest_rec!= nullptr && dest_rec->ignored)
-                    break; // skip source marked as IGNORED
+                    if (source_rec->type==NetFlowType::FLOW_LOCAL && dest_rec!= nullptr && dest_rec->type==NetFlowType::FLOW_LOCAL) {
 
-                NetFlowType src_type = (source_rec== nullptr)? NetFlowType::FLOW_INET:source_rec->type;
-                addNetPeer (source_ip, master_record->first, src_type, master_record->dOctets, master_record->out_bytes);
+                        localrec++;
+                        break;  // if both ip peers are local skip the record
+                    }
+                    if (source_rec->ignored) {
 
-                NetFlowType dst_type = (dest_rec==nullptr)? NetFlowType::FLOW_INET:dest_rec->type;
-                addNetPeer (dest_ip, master_record->first, dst_type, master_record->out_bytes, master_record->dOctets);
+                        ignoredrec++;
+                        break; // skip source marked as IGNORED
+                    }
+                    addNetPeer (source_ip, master_record->first, source_rec->type, master_record->dOctets, master_record->out_bytes);
+                }
+                if (dest_rec!= nullptr) {
 
+                    if (dest_rec->ignored) {
+
+                        ignoredrec++;
+                        break; // skip destination marked as IGNORED
+                    }
+                    addNetPeer (dest_ip, master_record->first, dest_rec->type, master_record->dOctets, master_record->out_bytes);
+                }
                 if (source_rec==nullptr && dest_rec==nullptr) {
 
                     time_t timestamp = master_record->first;

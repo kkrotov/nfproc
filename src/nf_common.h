@@ -148,6 +148,8 @@ char *get_record_header(void);
 
 char *get_sql_header(void);
 
+int ipv6flag (void *rec);
+
 char *get_sa (void *r, char *sa, int len);
 
 char *get_da (void *rec, char *sa, int len);

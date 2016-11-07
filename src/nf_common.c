@@ -1563,6 +1563,12 @@ master_record_t *r = (master_record_t *)record;
 
 } // End of flow_record_to_csv
 
+int ipv6flag (void *rec) {
+
+    master_record_t *r = rec;
+    return (r->flags & FLAG_IPV6_ADDR );
+}
+
 char *get_sa (void *rec, char *sa, int len) {
 
 	master_record_t *r = rec;

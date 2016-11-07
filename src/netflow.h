@@ -21,8 +21,8 @@ extern "C" {
 
 typedef enum {
 
-    FLOW_INET,
-    FLOW_LOCAL
+    FLOW_LOCAL,
+    FLOW_INET
 
 } NetFlowType;
 
@@ -36,6 +36,7 @@ public:
     unsigned int host_mask;
     NetFlowType type;
     bool ignored;
+    bool ipv6family;
 };
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -50,7 +51,7 @@ public:
 //        if (!createTable (conn))
 //            return ;
 
-        std::string sql = "select ip_addr::cidr, type, ignored from traf_settings";
+        std::string sql = "select ip_addr::cidr, type, ignored, family(ip_addr) from traf_settings";
         PGresult *res = PQexec(conn, sql.c_str());
         if (PQresultStatus(res) != PGRES_TUPLES_OK) {
 
@@ -64,6 +65,7 @@ public:
             std::string cidr = PQgetvalue(res, i, 0);
             rec.type = (NetFlowType)atoi(PQgetvalue(res, i, 1));
             rec.ignored = ('t' == *PQgetvalue(res, i, 2));
+            rec.ipv6family = ('6' == *PQgetvalue(res, i, 3));
 
             std::size_t pos = cidr.find('/');
             if (pos>0) {
@@ -90,14 +92,64 @@ public:
             return false;
         }
     };
+    bool validIpv4Address(const std::string &ipAddress) {
+
+        struct sockaddr_in sa;
+        int result = inet_pton(AF_INET, ipAddress.c_str(), &(sa.sin_addr));
+        return result != 0;
+    }
+    bool subnetContains (unsigned char ipv6_subnet[], unsigned char ipv6_addr[], int prefixLength) {
+
+        int i = 0;
+        int bits = prefixLength;
+        for (; bits >= 8; bits -= 8) {
+
+            if (ipv6_subnet[i] != ipv6_addr[i])
+                return false;
+
+            ++i;
+        }
+        if (bits > 0)
+        {
+            int mask = (unsigned char)~(255 >> bits);
+            if ((ipv6_subnet[i] & mask) != (ipv6_addr[i] & mask))
+                return false;
+        }
+        return true;
+    }
     AddressRec *get(std::string inet) {
 
-        uint32_t ip_addr =  inet_addr(inet.c_str());
+        if (validIpv4Address(inet)) {
+
+            // ipv4 :
+            uint32_t ip_addr =  inet_addr(inet.c_str());
+            for (auto &item : addr_rec) {
+
+                if (item.ipv6family)
+                    continue;
+
+                uint32_t range = inet_addr(item.host_ip.c_str());
+                unsigned mask = (1 << item.host_mask) -1;
+                if ((ip_addr & mask) == (range & mask))
+                    return &item;
+            }
+            return nullptr;
+        }
+        // ipv6 :
+        unsigned char ipv6_addr[sizeof(struct in6_addr)];
+        if (inet_pton(AF_INET6, inet.c_str(), ipv6_addr)<=0)
+            return nullptr;
+
         for (auto &item : addr_rec) {
 
-            uint32_t range = inet_addr(item.host_ip.c_str());
-            unsigned mask = (1 << item.host_mask) -1;
-            if ((ip_addr & mask) == (range & mask))
+            if (!item.ipv6family)
+                continue;
+
+            unsigned char ipv6_subnet[sizeof(struct in6_addr)];
+            if (inet_pton(AF_INET6, item.host_ip.c_str(), ipv6_subnet)<=0)
+                continue;
+
+            if (subnetContains (ipv6_subnet, ipv6_addr, item.host_mask))
                 return &item;
         }
         return nullptr;
@@ -126,11 +178,13 @@ class NetStat : public AddressBook {
     stat_record_t 		stat_record;
     std::map<std::string, NetFlow> net_flow_map;
     time_t tm_min, tm_max;
-    unsigned reccount;
+    unsigned reccount, localrec, ignoredrec;
 
 public:
-    NetStat (PGconn *conn) : AddressBook(conn) { this->pgConn=conn; reccount=0; };
+    NetStat (PGconn *conn) : AddressBook(conn) { this->pgConn=conn; reccount=localrec=ignoredrec=0; };
     unsigned RecordsProcessed() { return reccount;};
+    unsigned RecordsLocal() { return localrec; };
+    unsigned RecordsIgnored() { return  ignoredrec; };
     bool tableExists(std::string schema, std::string relname);
     bool createTable(std::string schema, std::string relname);
     bool CopyNetFlow(char *filename);
