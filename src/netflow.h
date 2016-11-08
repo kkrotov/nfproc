@@ -123,13 +123,26 @@ public:
 
             // ipv4 :
             uint32_t ip_addr =  inet_addr(inet.c_str());
+            ip_addr = ntohl(ip_addr);
             for (auto &item : addr_rec) {
 
                 if (item.ipv6family)
                     continue;
 
                 uint32_t range = inet_addr(item.host_ip.c_str());
-                unsigned mask = (1 << item.host_mask) -1;
+                range = ntohl(range);
+//                uint32_t mask = (1 << item.host_mask) -1;
+//                if ((ip_addr & mask) == (range & mask))
+//                    return &item;
+
+                uint32_t mask = 0;
+                int i;
+                for( i = 1; i <= item.host_mask; i++ )
+                    mask = (mask << 1) | 1;
+
+                for(; i <= 32; i++ )
+                    mask = mask << 1;
+
                 if ((ip_addr & mask) == (range & mask))
                     return &item;
             }
@@ -194,7 +207,7 @@ public:
     //bool ProcessNetFlow();
     bool CopyNetFlow (char *rel_name, char *filename);
     unsigned ProcessDataBlock (nffile_t *nffile_r);
-    void addNetPeer (std::string source_addr, time_t datetime, NetFlowType type, unsigned long in_bytes, unsigned long out_bytes);
+    void addNetPeer (char source_addr[], time_t datetime, NetFlowType type, unsigned long in_bytes, unsigned long out_bytes);
     std::string rel_name(std::string suffix, time_t);
     bool sameMonth(time_t time1, time_t time2);
 };

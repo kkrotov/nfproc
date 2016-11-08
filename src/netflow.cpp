@@ -18,9 +18,11 @@ bool NetStat::CopyNetFlow(char *filename) {
         LogError((char*)"Net flow array is empty");
         return true;
     }
-    bool success = CopyNetFlow (tm_min);
-    if (!success || sameMonth(tm_min, tm_max))
-        return success;
+    if (!CopyNetFlow (tm_min))
+        return false;
+
+    if (sameMonth(tm_min, tm_max))
+        return true;
 
     return CopyNetFlow (tm_max);
 }
@@ -228,7 +230,7 @@ unsigned NetStat::ProcessDataBlock (nffile_t *nffile_r) {
                 char dest_ip[INET6_ADDRSTRLEN];
                 get_da(master_record,dest_ip,sizeof(dest_ip));
 
-//                if (strcmp(source_ip,"85.94.32.50") && strcmp(dest_ip,"85.94.32.50"))
+//                if (strcmp(source_ip,"37.228.80.10")) // && strcmp(dest_ip,"85.94.32.50"))
 //                    break;
 //
                 rec_count++;
@@ -237,11 +239,11 @@ unsigned NetStat::ProcessDataBlock (nffile_t *nffile_r) {
                 AddressRec *dest_rec = get(dest_ip);
                 if (source_rec!= nullptr) {
 
-                    if (source_rec->type==NetFlowType::FLOW_LOCAL && dest_rec!= nullptr && dest_rec->type==NetFlowType::FLOW_LOCAL) {
-
-                        localrec++;
-                        break;  // if both ip peers are local skip the record
-                    }
+//                    if (source_rec->type==NetFlowType::FLOW_LOCAL && dest_rec!= nullptr && dest_rec->type==NetFlowType::FLOW_LOCAL) {
+//
+//                        localrec++;
+//                        break;  // if both ip peers are local skip the record
+//                    }
                     if (source_rec->ignored) {
 
                         ignoredrec++;
@@ -256,7 +258,7 @@ unsigned NetStat::ProcessDataBlock (nffile_t *nffile_r) {
                         ignoredrec++;
                         break; // skip destination marked as IGNORED
                     }
-                    addNetPeer (dest_ip, master_record->first, dest_rec->type, master_record->dOctets, master_record->out_bytes);
+                    addNetPeer (dest_ip, master_record->first, dest_rec->type, master_record->out_bytes, master_record->dOctets);
                 }
                 if (source_rec==nullptr && dest_rec==nullptr) {
 
@@ -308,7 +310,7 @@ unsigned NetStat::ProcessDataBlock (nffile_t *nffile_r) {
     return rec_count;
 }
 
-void NetStat::addNetPeer (std::string source_addr, time_t datetime, NetFlowType type, unsigned long in_bytes, unsigned long out_bytes) {
+void NetStat::addNetPeer (char source_addr[], time_t datetime, NetFlowType type, unsigned long in_bytes, unsigned long out_bytes) {
 
     time_t start_of_hour = datetime - (datetime % 3600);
     std::string key = source_addr+std::to_string(start_of_hour);
