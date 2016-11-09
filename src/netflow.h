@@ -176,7 +176,7 @@ public:
     time_t timestamp;
     std::string router_ip;
     std::string source_addr;
-    unsigned long in_bytes,
+    unsigned long long in_bytes,
             out_bytes;
     NetFlowType type;
 
@@ -192,6 +192,8 @@ class NetStat : public AddressBook {
     std::map<std::string, NetFlow> net_flow_map;
     time_t tm_min, tm_max;
     unsigned reccount, localrec, ignoredrec;
+    std::string src;
+    std::string dst;
 
 public:
     NetStat (PGconn *conn) : AddressBook(conn) { this->pgConn=conn; reccount=localrec=ignoredrec=0; };
@@ -200,7 +202,7 @@ public:
     unsigned RecordsIgnored() { return  ignoredrec; };
     bool tableExists(std::string schema, std::string relname);
     bool createTable(std::string schema, std::string relname);
-    bool CopyNetFlow(char *filename);
+    bool CopyNetFlow(char *filename, std::string src, std::string dst);
     bool ReadNetFlow(char *rfile);
     bool SaveNetFlow (std::string csvfilepath);
     bool CopyNetFlow (time_t timestamp);

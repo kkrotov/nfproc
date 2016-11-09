@@ -54,6 +54,8 @@ int main(int argc, char **argv) {
     std::string user = iniReader.Get("db","user","");
     std::string password = iniReader.Get("db","password","");
     std::string logPath = iniReader.Get("log","path","");
+    std::string src = iniReader.Get("debug","src","");
+    std::string dst = iniReader.Get("debug","dst","");
     logStream = freopen (logPath.c_str(), "a", stderr);
     if (logStream==NULL) {
 
@@ -72,7 +74,7 @@ int main(int argc, char **argv) {
     if (!nf.error) {
 
         LogInfo((char*)"Processing \"%s\" file...", rfile);
-        nf.CopyNetFlow(rfile);
+        nf.CopyNetFlow(rfile,src,dst);
         LogInfo((char*)"%u data records processed, %u records skipped as local, %u records marked as ignored", nf.RecordsProcessed(), nf.RecordsLocal(), nf.RecordsIgnored());
     }
 
