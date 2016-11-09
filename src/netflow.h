@@ -191,15 +191,19 @@ class NetStat : public AddressBook {
     stat_record_t 		stat_record;
     std::map<std::string, NetFlow> net_flow_map;
     time_t tm_min, tm_max;
-    unsigned reccount, localrec, ignoredrec;
+    unsigned reccount,
+            //localrec,
+            ignoredrec,
+            skipped;
     std::string src;
     std::string dst;
 
 public:
-    NetStat (PGconn *conn) : AddressBook(conn) { this->pgConn=conn; reccount=localrec=ignoredrec=0; };
+    NetStat (PGconn *conn) : AddressBook(conn) { this->pgConn=conn; reccount=ignoredrec=skipped=0; };
     unsigned RecordsProcessed() { return reccount;};
-    unsigned RecordsLocal() { return localrec; };
+    //unsigned RecordsLocal() { return localrec; };
     unsigned RecordsIgnored() { return  ignoredrec; };
+    unsigned RecordsSkipped() { return skipped; };
     bool tableExists(std::string schema, std::string relname);
     bool createTable(std::string schema, std::string relname);
     bool CopyNetFlow(char *filename, std::string src, std::string dst);

@@ -75,7 +75,7 @@ int main(int argc, char **argv) {
 
         LogInfo((char*)"Processing \"%s\" file...", rfile);
         nf.CopyNetFlow(rfile,src,dst);
-        LogInfo((char*)"%u data records processed, %u records skipped as local, %u records marked as ignored", nf.RecordsProcessed(), nf.RecordsLocal(), nf.RecordsIgnored());
+        LogInfo((char*)"%u data records processed, %u records skipped, %u records marked as ignored", nf.RecordsProcessed(), nf.RecordsSkipped(), nf.RecordsIgnored());
     }
 
     PQfinish(pgConn);

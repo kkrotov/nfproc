@@ -272,6 +272,7 @@ unsigned NetStat::ProcessDataBlock (nffile_t *nffile_r) {
                     char datetime[64];
                     strftime(datetime, sizeof(datetime)-1, "%Y-%m-%d %H:%M:%S", ts);
                     LogError((char*)"%s\t%s\t%s\t%d\t%d", datetime, source_ip, dest_ip, master_record->dOctets, master_record->out_bytes);
+                    skipped++;
                 }
             } break;
 
