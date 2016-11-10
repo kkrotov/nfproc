@@ -154,7 +154,7 @@ char *get_sa (void *r, char *sa, int len);
 
 char *get_da (void *rec, char *sa, int len);
 
-char *get_ra (void *r, char *ra, int len);
+void get_ra (void *r, char *ra);
 
 void set_record_header(void);
 

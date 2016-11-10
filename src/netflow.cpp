@@ -5,9 +5,11 @@
 #include <libpq-fe.h>
 #include <vector>
 #include <limits>
+#include <regex>
 
 #include "netflow.h"
 
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 bool NetStat::CopyNetFlow(char *filename, std::string src, std::string dst) {
 
     this->src = src;
@@ -20,15 +22,38 @@ bool NetStat::CopyNetFlow(char *filename, std::string src, std::string dst) {
         LogError((char*)"Net flow array is empty");
         return true;
     }
-    if (!CopyNetFlow (tm_min))
-        return false;
-
-    if (sameMonth(tm_min, tm_max))
-        return true;
-
-    return CopyNetFlow (tm_max);
+//    std::string schema ="public";
+//    std::string relname;
+//    if (!createTable(schema, "1h", tm_min, relname)) {
+//
+//        LogError((char*)"Unable to create %s", relname.c_str());
+//        return false;
+//    }
+//    if (!CopyNetFlow (relaname, tm_min))
+//        return false;
+//
+//    if (sameMonth(tm_min, tm_max))
+//        return true;
+//
+//    if (!createTable(schema, "1h", tm_max, relname)) {
+//
+//        LogError((char*)"Unable to create %s", relname.c_str());
+//        return false;
+//    }
+    return InsertNetFlow("traf_flow");
 }
 
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+bool NetStat::createTable(std::string schema, std::string suffix, time_t timestamp, std::string &relname) {
+
+    relname = rel_name(suffix, timestamp);
+    if (!tableExists(schema, relname) && !createTable(schema, relname))
+        return false;
+
+    return true;
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 bool NetStat::sameMonth(time_t time1, time_t time2) {
 
     struct tm *tm1 = localtime(&time1);
@@ -36,6 +61,7 @@ bool NetStat::sameMonth(time_t time1, time_t time2) {
     return tm1->tm_mon==tm2->tm_mon;
 }
 
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 std::string NetStat::rel_name(std::string suffix, time_t datetime) {
 
     struct tm *temp = localtime(&datetime);
@@ -45,6 +71,7 @@ std::string NetStat::rel_name(std::string suffix, time_t datetime) {
     return std::string(relname);
 }
 
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 bool NetStat::tableExists(std::string schema, std::string relname) {
 
     std::string check = "SELECT EXISTS(SELECT * FROM information_schema.tables WHERE table_schema = '"+schema+"' AND table_name = '"+relname+"')";
@@ -58,12 +85,13 @@ bool NetStat::tableExists(std::string schema, std::string relname) {
     return false;
 }
 
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 bool NetStat::createTable(std::string schema, std::string relname) {
 
     std::string sql = "SET client_min_messages = error;"
                       "CREATE TABLE IF NOT EXISTS "+schema+"."+relname+"() INHERITS ("+schema+".traf_flow);"
                       "ALTER TABLE "+relname+" OWNER TO postgres;"
-                      "CREATE INDEX "+relname+"_idx ON "+schema+"."+relname+" USING btree (datetime, ip_addr);";
+                      "CREATE UNIQUE INDEX "+relname+"_idx ON "+schema+"."+relname+" USING btree (datetime, ip_addr);";
     PGresult *res = PQexec(pgConn, sql.c_str());
 //            PQexec(pgConn, "CREATE TABLE IF NOT EXISTS net_flow(datetime timestamp without time zone,router_ip inet,ip_addr inet,in_bytes bigint,out_bytes bigint,type integer);"
 //            "ALTER TABLE net_flow OWNER TO postgres;");
@@ -75,6 +103,7 @@ bool NetStat::createTable(std::string schema, std::string relname) {
     return true;
 }
 
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 bool NetStat::CopyNetFlow (char *rel_name, char *filename) {
 
     char sql[4096];
@@ -88,16 +117,37 @@ bool NetStat::CopyNetFlow (char *rel_name, char *filename) {
     return true;
 }
 
-bool NetStat::CopyNetFlow (time_t timestamp) {
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+bool NetStat::InsertNetFlow (std::string relname) {
 
-    std::string schema ="public";
-    std::string relname = rel_name("1d", timestamp);
-    if (!tableExists(schema, relname) && !createTable(schema, relname))
-        return false;
+    unsigned recordscopied = 0;
+    for (auto it=net_flow_map.begin(); it!=net_flow_map.end(); ++it) {
 
-    relname = rel_name("1h", timestamp);
-    if (!tableExists(schema, relname) && !createTable(schema, relname))
-        return false;
+        NetFlow &nf = it->second;
+//        if (!sameMonth(nf.timestamp, timestamp))
+//            continue;
+
+        char datetime[64];
+        struct tm *ts = localtime(&nf.timestamp);
+        strftime(datetime, sizeof(datetime)-1, "%Y-%m-%d %H:%M:%S", ts);
+        char sql[2048];
+        snprintf(sql, sizeof(sql), "INSERT INTO %s (datetime,router_ip,ip_addr,in_bytes,out_bytes,type) VALUES('%s','%s','%s',%llu,%llu,%u)",
+                 relname.c_str(), datetime, nf.router_ip.c_str(), nf.source_addr.c_str(), nf.in_bytes, nf.out_bytes,nf.type);
+
+        PGresult *res = PQexec(pgConn, sql);
+        ExecStatusType stat = PQresultStatus(res);
+        if (stat != PGRES_COMMAND_OK) {
+
+            LogError((char*)"Error inserting data record: %s\n", PQresultErrorMessage(res));
+            return false;
+        }
+        recordscopied++;
+    }
+    return true;
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+bool NetStat::CopyNetFlow (std::string relname, time_t timestamp) {
 
     std::string sql = "COPY " + relname + " FROM STDIN DELIMITER ',' CSV header";
     PGresult *res = PQexec(pgConn, sql.c_str());
@@ -137,6 +187,7 @@ bool NetStat::CopyNetFlow (time_t timestamp) {
     return stat==PGRES_COMMAND_OK;
 }
 
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 bool NetStat::ReadNetFlow(char *rfile) {
 
     nffile_t *nffile_r = OpenFile(rfile, NULL);
@@ -194,6 +245,7 @@ bool NetStat::ReadNetFlow(char *rfile) {
     }
 }
 
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 unsigned NetStat::ProcessDataBlock (nffile_t *nffile_r) {
 
     unsigned rec_count = 0;
@@ -225,36 +277,31 @@ unsigned NetStat::ProcessDataBlock (nffile_t *nffile_r) {
                 extension_map_list->slot[map_id]->ref_count++;
 
                 // source
-                char source_ip[INET6_ADDRSTRLEN];
-                get_sa(master_record,source_ip,sizeof(source_ip));
+                std::string source_ip = GetSourceAddr();
 
                 // destination
-                char dest_ip[INET6_ADDRSTRLEN];
-                get_da(master_record,dest_ip,sizeof(dest_ip));
+                std::string dest_ip = GetDestAddr ();
 
-                if (!this->src.empty() && this->src!=std::string(source_ip))
+                if (!this->src.empty() && this->src!=source_ip)
                     break;
 
-                if (!this->dst.empty() && this->dst!=std::string(dest_ip))
+                if (!this->dst.empty() && this->dst!=dest_ip)
                     break;
 
                 rec_count++;
 
                 AddressRec *source_rec = get(source_ip);
                 AddressRec *dest_rec = get(dest_ip);
+                NetFlowType type = (source_rec!= nullptr) && (dest_rec!= nullptr)? NetFlowType::FLOW_LOCAL:NetFlowType::FLOW_INET;
+
                 if (source_rec!= nullptr) {
 
-//                    if (source_rec->type==NetFlowType::FLOW_LOCAL && dest_rec!= nullptr && dest_rec->type==NetFlowType::FLOW_LOCAL) {
-//
-//                        localrec++;
-//                        break;  // if both ip peers are local skip the record
-//                    }
                     if (source_rec->ignored) {
 
                         ignoredrec++;
                         break; // skip source marked as IGNORED
                     }
-                    addNetPeer (source_ip, master_record->first, source_rec->type, master_record->out_bytes, master_record->dOctets);
+                    addNetPeer (source_ip, master_record->first, type, master_record->out_bytes, master_record->dOctets);
                 }
                 if (dest_rec!= nullptr) {
 
@@ -263,7 +310,7 @@ unsigned NetStat::ProcessDataBlock (nffile_t *nffile_r) {
                         ignoredrec++;
                         break; // skip destination marked as IGNORED
                     }
-                    addNetPeer (dest_ip, master_record->first, dest_rec->type, master_record->dOctets, master_record->out_bytes);
+                    addNetPeer (dest_ip, master_record->first, type, master_record->dOctets, master_record->out_bytes);
                 }
                 if (source_rec==nullptr && dest_rec==nullptr) {
 
@@ -271,7 +318,8 @@ unsigned NetStat::ProcessDataBlock (nffile_t *nffile_r) {
                     struct tm *ts = localtime(&timestamp);
                     char datetime[64];
                     strftime(datetime, sizeof(datetime)-1, "%Y-%m-%d %H:%M:%S", ts);
-                    LogError((char*)"%s\t%s\t%s\t%d\t%d", datetime, source_ip, dest_ip, master_record->dOctets, master_record->out_bytes);
+                    LogError((char*)"%s\t%s\t%s\t%lld\t%lld", datetime, source_ip.c_str(), dest_ip.c_str(),
+                             (long long)master_record->dOctets, (long long)master_record->out_bytes);
                     skipped++;
                 }
             } break;
@@ -316,19 +364,17 @@ unsigned NetStat::ProcessDataBlock (nffile_t *nffile_r) {
     return rec_count;
 }
 
-void NetStat::addNetPeer (char source_addr[], time_t datetime, NetFlowType type, unsigned long in_bytes, unsigned long out_bytes) {
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+void NetStat::addNetPeer (std::string source_addr, time_t datetime, NetFlowType type, unsigned long in_bytes, unsigned long out_bytes) {
 
     time_t start_of_hour = datetime - (datetime % 3600);
-    std::string key = source_addr+std::to_string(start_of_hour);
+    std::string key = source_addr+std::to_string(start_of_hour)+std::to_string(type);
     auto it = net_flow_map.find(key);
     if (it == net_flow_map.end()) {
 
-        char router_ip[INET6_ADDRSTRLEN];
-        get_ra (master_record, router_ip, sizeof(router_ip));
-
         auto &net_flow = net_flow_map[key];
         net_flow.timestamp = start_of_hour;
-        net_flow.router_ip = router_ip;
+        net_flow.router_ip = GetRouterIp ();
         net_flow.source_addr = source_addr;
         net_flow.out_bytes = out_bytes;
         net_flow.in_bytes = in_bytes;
@@ -347,6 +393,7 @@ void NetStat::addNetPeer (char source_addr[], time_t datetime, NetFlowType type,
     }
 }
 
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 bool NetStat::SaveNetFlow (std::string csvfilepath) {
 
     FILE *csvfile = fopen(csvfilepath.c_str(),"w+t");
@@ -373,6 +420,37 @@ bool NetStat::SaveNetFlow (std::string csvfilepath) {
     return true;
 }
 
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+std::string NetStat::GetRouterIp () {
+
+    char router_ip[INET6_ADDRSTRLEN];
+    get_ra (master_record, router_ip);
+    std::string value = router_ip;
+    value.erase(value.begin(), std::find_if(value.begin(), value.end(), std::bind1st(std::not_equal_to<char>(), ' ')));
+    return value;
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+std::string NetStat::GetSourceAddr () {
+
+    char source_ip[INET6_ADDRSTRLEN];
+    get_sa(master_record,source_ip,sizeof(source_ip));
+    std::string value = source_ip;
+    value.erase(value.begin(), std::find_if(value.begin(), value.end(), std::bind1st(std::not_equal_to<char>(), ' ')));
+    return value;
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+std::string NetStat::GetDestAddr () {
+
+    char dest_ip[INET6_ADDRSTRLEN];
+    get_da(master_record,dest_ip,sizeof(dest_ip));
+    std::string value = dest_ip;
+    value.erase(value.begin(), std::find_if(value.begin(), value.end(), std::bind1st(std::not_equal_to<char>(), ' ')));
+    return value;
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 static inline void UpdateStat(stat_record_t	*stat_record, master_record_t *master_record) {
 
     switch (master_record->prot) {
@@ -429,6 +507,7 @@ static inline void UpdateStat(stat_record_t	*stat_record, master_record_t *maste
 
 } // End of UpdateStat
 
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Use 4 uint32_t copy cycles, as SPARC CPUs brak
 static inline void CopyV6IP(uint32_t *dst, uint32_t *src) {
     dst[0] = src[0];
@@ -437,6 +516,7 @@ static inline void CopyV6IP(uint32_t *dst, uint32_t *src) {
     dst[3] = src[3];
 } // End of CopyV6IP
 
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /*
  * Expand file record into master record for further processing
  * LP64 CPUs need special 32bit operations as it is not guarateed, that 64bit

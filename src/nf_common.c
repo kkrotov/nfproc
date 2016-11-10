@@ -1569,9 +1569,15 @@ int ipv6flag (void *rec) {
     return (r->flags & FLAG_IPV6_ADDR );
 }
 
+void get_ra (void *rec, char *ra) {
+
+    String_RouterIP(rec, ra);
+}
+
 char *get_sa (void *rec, char *sa, int len) {
 
-	master_record_t *r = rec;
+    String_SrcAddr(rec, sa);
+	/*master_record_t *r = rec;
 	char as[IP_STRING_LEN];
 
 	as[0] = 0;
@@ -1639,13 +1645,14 @@ char *get_sa (void *rec, char *sa, int len) {
 //		}
 	}
 	as[IP_STRING_LEN-1] = 0;
-	strncpy (sa, as, len);
+	strncpy (sa, as, len);*/
 	return sa;
 }
 
 char *get_da (void *rec, char *da, int len) {
 
-    master_record_t *r = rec;
+    String_DstAddr(rec, da);
+    /*master_record_t *r = rec;
     char ds[IP_STRING_LEN];
 
     ds[0] = 0;
@@ -1713,29 +1720,8 @@ char *get_da (void *rec, char *da, int len) {
 //		}
     }
     ds[IP_STRING_LEN-1] = 0;
-    strncpy (da, ds, len);
+    strncpy (da, ds, len);*/
     return da;
-}
-
-char *get_ra (void *rec, char *ra, int len) {
-
-	master_record_t *r = rec;
-	char as[IP_STRING_LEN];
-	as[0] = 0;
-	// EX_ROUTER_IP_v4:
-	if ( (r->flags & FLAG_IPV6_EXP ) != 0 ) { // IPv6
-		// EX_NEXT_HOP_v6:
-		r->ip_router.v6[0] = htonll(r->ip_router.v6[0]);
-		r->ip_router.v6[1] = htonll(r->ip_router.v6[1]);
-		inet_ntop(AF_INET6, r->ip_router.v6, as, sizeof(as));
-
-	} else {
-		// EX_NEXT_HOP_v4:
-		r->ip_router.v4 = htonl(r->ip_router.v4);
-		inet_ntop(AF_INET, &r->ip_router.v4, as, sizeof(as));
-	}
-	as[IP_STRING_LEN-1] = 0;
-	return strncpy (ra, as, len);
 }
 
 #if 0
@@ -2982,7 +2968,6 @@ char tmp_str[IP_STRING_LEN];
 
 
 } // End of String_RouterIP
-
 
 static void String_DstAddrPort(master_record_t *r, char *string) {
 char 	tmp_str[IP_STRING_LEN], portchar;
