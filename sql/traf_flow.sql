@@ -34,20 +34,21 @@ begin
                         'datetime < ' || quote_literal(next_mon) || '::timestamp without time zone)' || 
                         ') INHERITS (public.traf_flow) WITH (OIDS=FALSE)';
 
-                EXECUTE 'CREATE UNIQUE INDEX ' || relname || '_idx ON ' || schema || '.' || relname || ' USING btree (datetime, ip_addr)';
+                EXECUTE 'CREATE UNIQUE INDEX ' || relname || '_idx ON ' || schema || '.' || relname || ' USING btree (datetime, ip_addr, type)';
                 EXECUTE 'ALTER TABLE ' || relname || ' OWNER TO postgres';
                 EXECUTE 'GRANT ALL ON TABLE ' || relname || ' TO postgres';
         END IF;
 
-        EXECUTE 'SELECT EXISTS (SELECT * FROM ' || relname || ' WHERE datetime=' || quote_literal(new.datetime) || ' AND ip_addr=' || quote_literal(new.ip_addr) || ')' INTO rec_exists;
+        EXECUTE 'SELECT EXISTS (SELECT * FROM ' || relname || ' WHERE datetime=' || quote_literal(new.datetime) || ' AND ip_addr=' || quote_literal(new.ip_addr) || 
+		' AND type=' || new.type || ')' INTO rec_exists;
         IF NOT rec_exists
         THEN
 
                 EXECUTE format('insert into ' || relname || '(datetime,router_ip,ip_addr,in_bytes,out_bytes,type) VALUES($1,$2,$3,$4,$5,$6)')
                         USING new.datetime,new.router_ip,new.ip_addr,new.in_bytes,new.out_bytes,new.type;
         ELSE
-                EXECUTE format('update ' || relname || ' set in_bytes=in_bytes+$1, out_bytes=out_bytes+$2 where datetime=$3 and ip_addr=$4') 
-			USING new.in_bytes,new.out_bytes, new.datetime,new.ip_addr;
+                EXECUTE format('update ' || relname || ' set in_bytes=in_bytes+$1, out_bytes=out_bytes+$2 where datetime=$3 and ip_addr=$4 and type=$5') 
+			USING new.in_bytes,new.out_bytes, new.datetime,new.ip_addr,new.type;
         END IF;
 
         return null;        
@@ -57,7 +58,6 @@ $BODY$
   COST 100;
 ALTER FUNCTION traf_flow_partitioning()
   OWNER TO postgres;
-
 
 -- Table: traf_flow
 
@@ -87,5 +87,4 @@ CREATE TRIGGER partitioning
   ON traf_flow
   FOR EACH ROW
   EXECUTE PROCEDURE traf_flow_partitioning();
-
 

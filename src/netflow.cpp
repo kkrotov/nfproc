@@ -139,7 +139,7 @@ bool NetStat::createTable(std::string schema, std::string relname) {
     std::string sql = "SET client_min_messages = error;"
                       "CREATE TABLE IF NOT EXISTS "+schema+"."+relname+"() INHERITS ("+schema+".traf_flow);"
                       "ALTER TABLE "+relname+" OWNER TO postgres;"
-                      "CREATE UNIQUE INDEX "+relname+"_idx ON "+schema+"."+relname+" USING btree (datetime, ip_addr);";
+                      "CREATE UNIQUE INDEX "+relname+"_idx ON "+schema+"."+relname+" USING btree (datetime, ip_addr, type);";
     PGresult *res = PQexec(pgConn, sql.c_str());
 //            PQexec(pgConn, "CREATE TABLE IF NOT EXISTS net_flow(datetime timestamp without time zone,router_ip inet,ip_addr inet,in_bytes bigint,out_bytes bigint,type integer);"
 //            "ALTER TABLE net_flow OWNER TO postgres;");
@@ -425,7 +425,11 @@ unsigned NetStat::ProcessDataBlock (nffile_t *nffile_r) {
 void NetStat::addNetPeer (std::string source_addr, time_t datetime, NetFlowType type, unsigned long in_bytes, unsigned long out_bytes) {
 
     time_t start_of_hour = datetime - (datetime % 3600);
-    std::string key = source_addr+std::to_string(start_of_hour)+std::to_string(type);
+    char hour[64];
+    struct tm *ts = localtime(&start_of_hour);
+    strftime(hour, sizeof(hour)-1, "%y%m%d%H", ts);
+
+    std::string key = source_addr+"_"+hour+"_"+std::to_string(type);
     auto it = net_flow_map.find(key);
     if (it == net_flow_map.end()) {
 
