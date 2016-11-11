@@ -221,7 +221,6 @@ public:
     std::string GetRouterIp ();
     std::string GetSourceAddr ();
     std::string GetDestAddr ();
-    std::string getFileName(const std::string& s);
     bool isProcessed(const std::string path);
     bool saveProcessed(const std::string path);
 };

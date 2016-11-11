@@ -46,11 +46,25 @@ bool NetStat::CopyNetFlow(char *filename, std::string src, std::string dst) {
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 bool NetStat::isProcessed(const std::string path) {
 
-    std::string filname = getFileName(path);
+    std::string filname = basename(path.c_str());
     if (filname.empty())
         return false;
 
-    std::string check = "SELECT EXISTS(SELECT * FROM public.files_processed WHERE filename = '"+filname+"')";
+    std::string schema = "public";
+    std::string relname = "files_processed";
+    if (!tableExists(schema, relname)) {
+
+        std::string sql = "CREATE TABLE "+schema+"."+relname+"(datetime timestamp without time zone,name character varying);"
+                "ALTER TABLE "+relname+" OWNER TO postgres;"
+                                  "CREATE UNIQUE INDEX "+relname+"_idx ON "+schema+"."+relname+" USING btree (name);";
+        PGresult *res = PQexec(pgConn, sql.c_str());
+        if (PQresultStatus(res) != PGRES_COMMAND_OK) {
+
+            LogError((char*)"Error creating data table %s: %s\n", relname.c_str(), PQresultErrorMessage(res));
+        }
+        return false;
+    }
+    std::string check = "SELECT EXISTS(SELECT * FROM "+schema+"."+relname+" WHERE name = '"+filname+"')";
     PGresult *res = PQexec(pgConn, check.c_str());
     if ((PQresultStatus(res)==PGRES_TUPLES_OK) && (PQntuples(res)>0)) {
 
@@ -63,29 +77,18 @@ bool NetStat::isProcessed(const std::string path) {
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 bool NetStat::saveProcessed(const std::string path) {
 
-    std::string filname = getFileName(path);
+    std::string filname = basename(path.c_str());
     if (filname.empty())
         return false;
 
     std::string sql;
     if (!isProcessed(path))
-        sql="INSERT INTO public.files_processed (datetime,filename) values(now(),'"+filname+"')";
+        sql="INSERT INTO public.files_processed (datetime,name) values(now(),'"+filname+"')";
     else
-        sql = "UPDATE public.files_processed SET datetime=now() WHERE filename='"+filname+"'";
+        sql = "UPDATE public.files_processed SET datetime=now() WHERE name='"+filname+"'";
 
     PGresult *res = PQexec(pgConn, sql.c_str());
     return  PQresultStatus(res)==PGRES_COMMAND_OK;
-}
-
-///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-std::string NetStat::getFileName(const std::string& path) {
-
-    char sep = '/';
-    size_t i = path.rfind(sep, path.length());
-    if (i != std::string::npos)
-        return(path.substr(i+1, path.length() - i));
-
-    return(path);
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
