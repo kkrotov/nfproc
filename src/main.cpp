@@ -18,8 +18,9 @@ int main(int argc, char **argv) {
     std::string pg_conn_string;
     char *rfile = nullptr,
             *configfile = nullptr;
+    bool force = false;
 
-    while ((c = getopt(argc, argv, "h:r:c:")) != EOF) {
+    while ((c = getopt(argc, argv, "h:r:c:f::")) != EOF) {
 
         switch (c) {
 
@@ -31,6 +32,9 @@ int main(int argc, char **argv) {
                 break;
             case 'c':
                 configfile = optarg;
+                break;
+            case 'f':
+                force = true;
                 break;
             case 'h':
                 usage();
@@ -67,20 +71,21 @@ int main(int argc, char **argv) {
     if (PQstatus(pgConn) != CONNECTION_OK) {
 
         LogError((char*)"Error connecting to database\n");
-//        freopen("CON", "w", stderr);
         exit(255);
     }
     NetStat nf(pgConn);
     if (!nf.error) {
 
-        LogInfo((char*)"Processing \"%s\" file...", rfile);
-        nf.CopyNetFlow(rfile,src,dst);
-        LogInfo((char*)"%u data records processed, %u records skipped, %u records marked as ignored", nf.RecordsProcessed(), nf.RecordsSkipped(), nf.RecordsIgnored());
+        if (!nf.isProcessed(rfile) || force) {
+
+            LogInfo((char*)"Processing \"%s\" file...", rfile);
+            nf.CopyNetFlow(rfile,src,dst);
+            nf.saveProcessed(rfile);
+            LogInfo((char*)"%u data records processed, %u records skipped, %u records marked as ignored", nf.RecordsProcessed(), nf.RecordsSkipped(), nf.RecordsIgnored());
+        }
+        else
+            LogInfo((char*)"\"%s\" file is already done", rfile);
     }
-
     PQfinish(pgConn);
-    //fclose (logStream);
-    //freopen("CON", "w", stderr);
-
     exit(0);
 }

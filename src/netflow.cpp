@@ -44,6 +44,51 @@ bool NetStat::CopyNetFlow(char *filename, std::string src, std::string dst) {
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+bool NetStat::isProcessed(const std::string path) {
+
+    std::string filname = getFileName(path);
+    if (filname.empty())
+        return false;
+
+    std::string check = "SELECT EXISTS(SELECT * FROM public.files_processed WHERE filename = '"+filname+"')";
+    PGresult *res = PQexec(pgConn, check.c_str());
+    if ((PQresultStatus(res)==PGRES_TUPLES_OK) && (PQntuples(res)>0)) {
+
+        std::string s = PQgetvalue(res, 0, 0);
+        return s=="t";
+    }
+    return false;
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+bool NetStat::saveProcessed(const std::string path) {
+
+    std::string filname = getFileName(path);
+    if (filname.empty())
+        return false;
+
+    std::string sql;
+    if (!isProcessed(path))
+        sql="INSERT INTO public.files_processed (datetime,filename) values(now(),'"+filname+"')";
+    else
+        sql = "UPDATE public.files_processed SET datetime=now() WHERE filename='"+filname+"'";
+
+    PGresult *res = PQexec(pgConn, sql.c_str());
+    return  PQresultStatus(res)==PGRES_COMMAND_OK;
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+std::string NetStat::getFileName(const std::string& path) {
+
+    char sep = '/';
+    size_t i = path.rfind(sep, path.length());
+    if (i != std::string::npos)
+        return(path.substr(i+1, path.length() - i));
+
+    return(path);
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 bool NetStat::createTable(std::string schema, std::string suffix, time_t timestamp, std::string &relname) {
 
     relname = rel_name(suffix, timestamp);
@@ -120,6 +165,12 @@ bool NetStat::CopyNetFlow (char *rel_name, char *filename) {
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 bool NetStat::InsertNetFlow (std::string relname) {
 
+    PGresult *res = PQexec(pgConn, "BEGIN");
+    if (PQresultStatus(res) != PGRES_COMMAND_OK) {
+        LogError((char*)"BEGIN command failed: %s", PQerrorMessage(pgConn));
+        PQclear(res);
+        return false;
+    }
     unsigned recordscopied = 0;
     for (auto it=net_flow_map.begin(); it!=net_flow_map.end(); ++it) {
 
@@ -134,15 +185,18 @@ bool NetStat::InsertNetFlow (std::string relname) {
         snprintf(sql, sizeof(sql), "INSERT INTO %s (datetime,router_ip,ip_addr,in_bytes,out_bytes,type) VALUES('%s','%s','%s',%llu,%llu,%u)",
                  relname.c_str(), datetime, nf.router_ip.c_str(), nf.source_addr.c_str(), nf.in_bytes, nf.out_bytes,nf.type);
 
-        PGresult *res = PQexec(pgConn, sql);
+        res = PQexec(pgConn, sql);
         ExecStatusType stat = PQresultStatus(res);
         if (stat != PGRES_COMMAND_OK) {
 
             LogError((char*)"Error inserting data record: %s\n", PQresultErrorMessage(res));
+            PQclear(res);
             return false;
         }
         recordscopied++;
     }
+    res = PQexec(pgConn, "END");
+    PQclear(res);
     return true;
 }
 
