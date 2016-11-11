@@ -14,7 +14,7 @@ declare
         next_mon timestamp;
         rec_exists boolean;
 begin
-        suffix := to_char(new.datetime, 'YYYYMM');
+	suffix := to_char(new.datetime, 'YYYYMM');
         --raise notice '%', suffix;
         schema := 'public';
         relname := 'traf_flow_1h_' || suffix;
@@ -51,7 +51,27 @@ begin
 			USING new.in_bytes,new.out_bytes, new.datetime,new.ip_addr,new.type;
         END IF;
 
-        return null;        
+	relname := 'traf_flow_1d_' || suffix;
+	EXECUTE 'SELECT EXISTS(SELECT * FROM information_schema.tables WHERE table_schema = ' || quote_literal(schema) || 
+		' AND table_name = ' || quote_literal(relname) || ')' INTO rel_exists;
+	
+        IF rel_exists = 'f'
+        THEN
+                EXECUTE 'select date_trunc(''month'', TIMESTAMP ' || quote_literal(new.datetime) || ' );' INTO this_mon;
+                EXECUTE 'select date_trunc(''month'', TIMESTAMP ' || quote_literal(new.datetime) || ' + INTERVAL ''1 MON'');' INTO next_mon;
+
+                EXECUTE 'CREATE TABLE ' || schema || '.' || relname || 
+                        ' (CONSTRAINT ' || relname || '_datetime_check CHECK (' || 
+                        'datetime >= ' || quote_literal(this_mon) || '::timestamp without time zone AND ' || 
+                        'datetime < ' || quote_literal(next_mon) || '::timestamp without time zone)' || 
+                        ') INHERITS (public.traf_flow) WITH (OIDS=FALSE)';
+
+                EXECUTE 'CREATE UNIQUE INDEX ' || relname || '_idx ON ' || schema || '.' || relname || ' USING btree (datetime, ip_addr, type)';
+                EXECUTE 'ALTER TABLE ' || relname || ' OWNER TO postgres';
+                EXECUTE 'GRANT ALL ON TABLE ' || relname || ' TO postgres';
+        END IF;
+
+        return null;  
 end;
 $BODY$
   LANGUAGE plpgsql VOLATILE

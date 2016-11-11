@@ -124,6 +124,7 @@ public:
             // ipv4 :
             uint32_t ip_addr =  inet_addr(inet.c_str());
             ip_addr = ntohl(ip_addr);
+            AddressRec *arec = nullptr;
             for (auto &item : addr_rec) {
 
                 if (item.ipv6family)
@@ -143,10 +144,14 @@ public:
                 for(; i <= 32; i++ )
                     mask = mask << 1;
 
-                if ((ip_addr & mask) == (range & mask))
-                    return &item;
+                if ((ip_addr & mask) == (range & mask)) {
+
+                    if (arec==nullptr || arec->host_mask<item.host_mask)
+                        arec = &item;
+                    //return &item;
+                }
             }
-            return nullptr;
+            return arec;
         }
         // ipv6 :
         unsigned char ipv6_addr[sizeof(struct in6_addr)];

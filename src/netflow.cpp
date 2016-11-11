@@ -339,34 +339,27 @@ unsigned NetStat::ProcessDataBlock (nffile_t *nffile_r) {
                 // destination
                 std::string dest_ip = GetDestAddr ();
 
-                if (!this->src.empty() && this->src!=source_ip)
+                if (!this->src.empty() && this->src!=source_ip)     // DEBUG
                     break;
 
-                if (!this->dst.empty() && this->dst!=dest_ip)
+                if (!this->dst.empty() && this->dst!=dest_ip)       // DEBUG
                     break;
 
                 rec_count++;
 
                 AddressRec *source_rec = get(source_ip);
                 AddressRec *dest_rec = get(dest_ip);
+                if (source_rec!=nullptr && source_rec->ignored || dest_rec!=nullptr && dest_rec->ignored)
+                    break;  // skip records marked as IGNORED
+
                 NetFlowType type = (source_rec!= nullptr) && (dest_rec!= nullptr)? NetFlowType::FLOW_LOCAL:NetFlowType::FLOW_INET;
 
                 if (source_rec!= nullptr) {
 
-                    if (source_rec->ignored) {
-
-                        ignoredrec++;
-                        break; // skip source marked as IGNORED
-                    }
                     addNetPeer (source_ip, master_record->first, type, master_record->out_bytes, master_record->dOctets);
                 }
                 if (dest_rec!= nullptr) {
 
-                    if (dest_rec->ignored) {
-
-                        ignoredrec++;
-                        break; // skip destination marked as IGNORED
-                    }
                     addNetPeer (dest_ip, master_record->first, type, master_record->dOctets, master_record->out_bytes);
                 }
                 if (source_rec==nullptr && dest_rec==nullptr) {
