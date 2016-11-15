@@ -1,6 +1,7 @@
 #include <iostream>
 #include <getopt.h>
 #include <libpq-fe.h>
+#include <cstring>
 #include "netflow.h"
 #include "IniReader.h"
 FILE *logStream;
@@ -8,7 +9,7 @@ FILE *logStream;
 void usage () {
 
 //    printf("nfproc -r nfcapd_file_path -C \"host=<address> dbname=<database_name> user=<user_id> password=<password>\"\n");
-    printf("nf2postgres -r nfcapd_file_path -c config_file_path\n");
+    printf("nf2postgres -r nfcapd_file_path -c config_file_path -f [-a insert|copy]\n");
     exit(1);
 }
 
@@ -18,9 +19,10 @@ int main(int argc, char **argv) {
     std::string pg_conn_string;
     char *rfile = nullptr,
             *configfile = nullptr;
-    bool force = false;
+    std::string algorithm;
+    bool force = false, insert = true;
 
-    while ((c = getopt(argc, argv, "h:r:c:f::")) != EOF) {
+    while ((c = getopt(argc, argv, "h:r:c:a:f::")) != EOF) {
 
         switch (c) {
 
@@ -36,6 +38,17 @@ int main(int argc, char **argv) {
             case 'f':
                 force = true;
                 break;
+            case 'a':
+                if (strcmp (optarg, "copy")==0) {
+
+                    algorithm = optarg;
+                    break;
+                }
+                if (strcmp (optarg, "insert")==0) {
+
+                    algorithm = optarg;
+                    break;
+                }
             case 'h':
                 usage();
                 break;
@@ -57,6 +70,10 @@ int main(int argc, char **argv) {
     std::string dbname = iniReader.Get("db","dbname","");
     std::string user = iniReader.Get("db","user","");
     std::string password = iniReader.Get("db","password","");
+    std::string parentname = iniReader.Get("db","parent","traf_flow");
+    if (algorithm.size()==0)
+        algorithm = iniReader.Get("db","algorithm","insert");
+
     std::string logPath = iniReader.Get("log","path","");
     std::string src = iniReader.Get("debug","src","");
     std::string dst = iniReader.Get("debug","dst","");
@@ -79,7 +96,7 @@ int main(int argc, char **argv) {
         if (!nf.isProcessed(rfile) || force) {
 
             LogInfo((char*)"Processing \"%s\" file...", rfile);
-            nf.CopyNetFlow(rfile,src,dst);
+            nf.StoreNetFlow(parentname, rfile, (algorithm=="insert"));
             nf.saveProcessed(rfile);
             LogInfo((char*)"%u data records processed, %u records skipped, %u records marked as ignored", nf.RecordsProcessed(), nf.RecordsSkipped(), nf.RecordsIgnored());
         }

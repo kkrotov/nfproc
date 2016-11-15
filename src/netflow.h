@@ -210,24 +210,29 @@ public:
     unsigned RecordsIgnored() { return  ignoredrec; };
     unsigned RecordsSkipped() { return skipped; };
     bool tableExists(std::string schema, std::string relname);
-    bool createTable(std::string schema, std::string relname);
-    bool createTable(std::string schema, std::string suffix, time_t timestamp, std::string &relname);
-    bool CopyNetFlow(char *filename, std::string src, std::string dst);
+    bool createTable(std::string schema, std::string relname, std::string parentname);
+    bool createTable(std::string parentname, std::string schema, std::string suffix, time_t timestamp, std::string &relname);
+    bool createParent(std::string schema, std::string parentname);
+    bool StoreNetFlow (std::string parentname, char *filename, bool insert);
+    bool CopyNetFlow(std::string parentname, char *filename, std::string src, std::string dst);
+    bool WriteNetFlow (std::string rel_name, time_t timestamp);
+    bool CopyNetFlow (char *rel_name, char *filename);
     bool ReadNetFlow(char *rfile);
+    bool ReadNetFlow(std::string parentname);
     bool SaveNetFlow (std::string csvfilepath);
     //bool ProcessNetFlow();
-    bool CopyNetFlow (char *rel_name, char *filename);
-    bool CopyNetFlow (std::string rel_name, time_t timestamp);
     bool InsertNetFlow (std::string relname);
+    bool InsertNetFlow2 (std::string relname);
     unsigned ProcessDataBlock (nffile_t *nffile_r);
-    void addNetPeer (std::string source_addr, time_t datetime, NetFlowType type, unsigned long in_bytes, unsigned long out_bytes);
-    std::string rel_name(std::string suffix, time_t);
+    void addNetPeer (std::string router_ip, std::string source_addr, time_t datetime, NetFlowType type, unsigned long in_bytes, unsigned long out_bytes);
+    std::string relName(std::string name, std::string suffix, time_t);
     bool sameMonth(time_t time1, time_t time2);
     std::string GetRouterIp ();
     std::string GetSourceAddr ();
     std::string GetDestAddr ();
     bool isProcessed(const std::string path);
     bool saveProcessed(const std::string path);
+    time_t str2time (std::string datetime);
 };
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////
