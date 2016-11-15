@@ -231,8 +231,8 @@ public:
     std::string GetRouterIp ();
     std::string GetSourceAddr ();
     std::string GetDestAddr ();
-    bool isProcessed(const std::string path);
-    bool saveProcessed(const std::string path);
+    bool isProcessed(const std::string path, std::string parent);
+    bool saveProcessed(const std::string path, std::string parent);
     time_t str2time (std::string datetime);
 };
 

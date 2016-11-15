@@ -206,11 +206,11 @@ int main(int argc, char **argv) {
     NetStat nf(pgConn);
     if (!nf.error) {
 
-        if (!nf.isProcessed(rfile) || force) {
+        if (!nf.isProcessed(rfile,parentname) || force) {
 
             LogInfo((char*)"Processing \"%s\" file...", rfile);
             nf.StoreNetFlow(parentname, rfile, (algorithm=="insert"));
-            nf.saveProcessed(rfile);
+            nf.saveProcessed(rfile, parentname);
             LogInfo((char*)"%u data records processed, %u records skipped, %u records marked as ignored", nf.RecordsProcessed(), nf.RecordsSkipped(), nf.RecordsIgnored());
         }
         else

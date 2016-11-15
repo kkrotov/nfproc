@@ -162,7 +162,7 @@ bool NetStat::ReadNetFlow (std::string childname) {
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-bool NetStat::isProcessed(const std::string path) {
+bool NetStat::isProcessed(const std::string path, std::string parent) {
 
     std::string filname = basename(path.c_str());
     if (filname.empty())
@@ -172,9 +172,9 @@ bool NetStat::isProcessed(const std::string path) {
     std::string relname = "files_processed";
     if (!tableExists(schema, relname)) {
 
-        std::string sql = "CREATE TABLE "+schema+"."+relname+"(datetime timestamp without time zone,name character varying);"
+        std::string sql = "CREATE TABLE "+schema+"."+relname+"(datetime timestamp without time zone,name character varying, parent character varying);"
                 "ALTER TABLE "+relname+" OWNER TO postgres;"
-                                  "CREATE UNIQUE INDEX "+relname+"_idx ON "+schema+"."+relname+" USING btree (name);";
+                                  "CREATE UNIQUE INDEX "+relname+"_idx ON "+schema+"."+relname+" USING btree (name,parent);";
         PGresult *res = PQexec(pgConn, sql.c_str());
         if (PQresultStatus(res) != PGRES_COMMAND_OK) {
 
@@ -182,7 +182,7 @@ bool NetStat::isProcessed(const std::string path) {
         }
         return false;
     }
-    std::string check = "SELECT EXISTS(SELECT * FROM "+schema+"."+relname+" WHERE name = '"+filname+"')";
+    std::string check = "SELECT EXISTS(SELECT * FROM "+schema+"."+relname+" WHERE name = '"+filname+"' AND parent='"+parent+"')";
     PGresult *res = PQexec(pgConn, check.c_str());
     if ((PQresultStatus(res)==PGRES_TUPLES_OK) && (PQntuples(res)>0)) {
 
@@ -193,17 +193,17 @@ bool NetStat::isProcessed(const std::string path) {
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-bool NetStat::saveProcessed(const std::string path) {
+bool NetStat::saveProcessed(const std::string path, std::string parent) {
 
     std::string filname = basename(path.c_str());
     if (filname.empty())
         return false;
 
     std::string sql;
-    if (!isProcessed(path))
-        sql="INSERT INTO public.files_processed (datetime,name) values(now(),'"+filname+"')";
+    if (!isProcessed(path,parent))
+        sql="INSERT INTO public.files_processed (datetime,name,parent) values(now(),'"+filname+"','"+parent+"')";
     else
-        sql = "UPDATE public.files_processed SET datetime=now() WHERE name='"+filname+"'";
+        sql = "UPDATE public.files_processed SET datetime=now() WHERE name='"+filname+"' AND parent='"+parent+"'";
 
     PGresult *res = PQexec(pgConn, sql.c_str());
     return  PQresultStatus(res)==PGRES_COMMAND_OK;
