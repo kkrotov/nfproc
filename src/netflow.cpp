@@ -20,6 +20,12 @@ bool NetStat::CopyNetFlow(std::string parentname, char *filename, std::string sr
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 bool NetStat::StoreNetFlow(std::string parentname, char *filename, bool insert) {
 
+    std::string schema = "public";
+    if (!tableExists(schema, parentname)) {
+
+        LogError((char*)"Parent table %s does not exist", parentname.c_str());
+        return false;
+    }
     if (!ReadNetFlow(filename))
         return false;
 
@@ -28,7 +34,7 @@ bool NetStat::StoreNetFlow(std::string parentname, char *filename, bool insert) 
         LogError((char*)"Net flow array is empty");
         return true;
     }
-    return insert? InsertNetFlow(parentname):InsertNetFlow2(parentname);
+    return insert? InsertNetFlow(parentname):InsertNetFlow2(parentname, schema);
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -71,14 +77,8 @@ bool NetStat::InsertNetFlow (std::string relname) {
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-bool NetStat::InsertNetFlow2 (std::string parentname) {
+bool NetStat::InsertNetFlow2 (std::string parentname, std::string schema) {
 
-    std::string schema = "public";
-    if (!tableExists(schema, parentname) && !createParent(schema, parentname)) {
-
-        LogError((char*)"Unable to create parent table %s", parentname.c_str());
-        return false;
-    }
     std::string relname;
     if (!createTable(parentname, schema, "1d", tm_min, relname)) {
 
@@ -90,8 +90,8 @@ bool NetStat::InsertNetFlow2 (std::string parentname) {
         LogError((char*)"Unable to create %s", relname.c_str());
         return false;
     }
-    if (!ReadNetFlow(relname))
-        return false;
+//    if (!ReadNetFlow(relname))
+//        return false;
 
     if (!WriteNetFlow (relname, tm_min))
         return false;
@@ -213,7 +213,7 @@ bool NetStat::saveProcessed(const std::string path) {
 bool NetStat::createTable(std::string parentname, std::string schema, std::string suffix, time_t timestamp, std::string &relname) {
 
     relname = relName(parentname, suffix, timestamp);
-    if (!tableExists(schema, relname) && !createTable(schema, relname, parentname))
+    if (!tableExists(schema, relname) && !createPartition(schema, relname, parentname, false))
         return false;
 
     return true;
@@ -252,6 +252,15 @@ bool NetStat::tableExists(std::string schema, std::string relname) {
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+bool NetStat::checkParent(std::string schema, std::string parentname, bool insert) {
+
+    if (!tableExists(schema, parentname))
+        return false;
+
+
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 bool NetStat::createParent(std::string schema, std::string parentname) {
 
     std::string sql = "CREATE TABLE IF NOT EXISTS "+schema+"."+parentname+"(datetime timestamp without time zone,router_ip inet,ip_addr inet,in_bytes bigint,out_bytes bigint,type integer);"
@@ -266,12 +275,12 @@ bool NetStat::createParent(std::string schema, std::string parentname) {
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-bool NetStat::createTable(std::string schema, std::string relname, std::string parentname) {
+bool NetStat::createPartition(std::string schema, std::string relname, std::string parentname, bool unique_index) {
 
     std::string sql = "SET client_min_messages = error;"
                       "CREATE TABLE IF NOT EXISTS "+schema+"."+relname+"() INHERITS ("+schema+"."+parentname+");"
                       "ALTER TABLE "+relname+" OWNER TO postgres;"
-                      "CREATE UNIQUE INDEX "+relname+"_idx ON "+schema+"."+relname+" USING btree (datetime, ip_addr, type);";
+                      "CREATE "+(unique_index? "UNIQUE":"")+" INDEX "+relname+"_idx ON "+schema+"."+relname+" USING btree (datetime, ip_addr, type);";
     PGresult *res = PQexec(pgConn, sql.c_str());
     if (PQresultStatus(res) != PGRES_COMMAND_OK) {
 
@@ -298,21 +307,21 @@ bool NetStat::CopyNetFlow (char *rel_name, char *filename) {
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 bool NetStat::WriteNetFlow (std::string relname, time_t timestamp) {
 
-    PGresult *res = PQexec(pgConn, "BEGIN");
-    if (PQresultStatus(res) != PGRES_COMMAND_OK) {
-        LogError((char*)"BEGIN command failed: %s", PQerrorMessage(pgConn));
-        PQclear(res);
-        return false;
-    }
-    std::string sql = "TRUNCATE "+relname;
-    res = PQexec(pgConn, sql.c_str());
-    if (PQresultStatus(res) != PGRES_COMMAND_OK) {
-        LogError((char*)"TRUNCATE command failed: %s", PQerrorMessage(pgConn));
-        PQclear(res);
-        return false;
-    }
-    sql = "COPY " + relname + " FROM STDIN DELIMITER ',' CSV header";
-    res = PQexec(pgConn, sql.c_str());
+//    PGresult *res = PQexec(pgConn, "BEGIN");
+//    if (PQresultStatus(res) != PGRES_COMMAND_OK) {
+//        LogError((char*)"BEGIN command failed: %s", PQerrorMessage(pgConn));
+//        PQclear(res);
+//        return false;
+//    }
+//    std::string sql = "TRUNCATE "+relname;
+//    res = PQexec(pgConn, sql.c_str());
+//    if (PQresultStatus(res) != PGRES_COMMAND_OK) {
+//        LogError((char*)"TRUNCATE command failed: %s", PQerrorMessage(pgConn));
+//        PQclear(res);
+//        return false;
+//    }
+    std::string sql = "COPY " + relname + " FROM STDIN DELIMITER ',' CSV header";
+    PGresult *res = PQexec(pgConn, sql.c_str());
     ExecStatusType stat = PQresultStatus(res);
     if (stat != PGRES_COPY_IN) {
 
@@ -346,7 +355,7 @@ bool NetStat::WriteNetFlow (std::string relname, time_t timestamp) {
 
     PQputCopyEnd(pgConn, NULL);
     stat = PQresultStatus(PQgetResult(pgConn));
-    PQexec(pgConn, "END");
+//    PQexec(pgConn, "END");
     return stat==PGRES_COMMAND_OK;
 }
 
