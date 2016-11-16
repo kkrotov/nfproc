@@ -14,12 +14,28 @@ void usage () {
     exit(1);
 }
 
-///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-void PrintCreateTable (std::string parentname, bool insert) {
+//bool SchemaExists (PGconn *pgConn, std::string schemaname) {
+//
+//    std::string check = "SELECT EXISTS(SELECT 1 FROM information_schema.schemata WHERE schema_name = '"+schemaname+"');";
+//    PGresult *res = PQexec(pgConn, check.c_str());
+//    if ((PQresultStatus(res)!=PGRES_TUPLES_OK) || (PQntuples(res)==0))
+//        return false;
+//
+//    std::string s = PQgetvalue(res, 0, 0);
+//    return s=="t";
+//}
 
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+void PrintCreateTable (std::string schema, std::string tablespace, std::string parentname, bool insert) {
+
+    if (!tablespace.empty()) {
+
+        tablespace = "TABLESPACE "+tablespace;
+    }
+    std::cout << "CREATE SCHEMA IF NOT EXISTS "+schema+";\n";
     if (!insert) {
 
-        std::cout << "CREATE TABLE "+parentname+"\n"
+        std::cout << "CREATE TABLE "+schema+"."+parentname+"\n"
                 "(\n"
                 "  datetime timestamp without time zone,\n"
                 "  router_ip inet,\n"
@@ -27,11 +43,11 @@ void PrintCreateTable (std::string parentname, bool insert) {
                 "  in_bytes bigint,\n"
                 "  out_bytes bigint,\n"
                 "  type integer\n"
-                ");\n"
-                "ALTER TABLE "+parentname+" OWNER TO postgres;\n";
+                ") "+tablespace+";\n"
+                "ALTER TABLE "+schema+"."+parentname+" OWNER TO postgres;\n";
         return;
     }
-    std::cout << "CREATE TABLE "+parentname+"\n"
+    std::cout << "CREATE TABLE "+schema+"."+parentname+"\n"
             "(\n"
             "  datetime timestamp without time zone,\n"
             "  router_ip inet,\n"
@@ -39,8 +55,8 @@ void PrintCreateTable (std::string parentname, bool insert) {
             "  in_bytes bigint,\n"
             "  out_bytes bigint,\n"
             "  type integer\n"
-            ");\n"
-            "ALTER TABLE "+parentname+" OWNER TO postgres;\n"
+            ") "+tablespace+";\n"
+            "ALTER TABLE "+schema+"."+parentname+" OWNER TO postgres;\n"
             "CREATE OR REPLACE FUNCTION "+parentname+"_partitioning() RETURNS trigger AS\n"
               "$BODY$\n"
               "declare\n"
@@ -53,7 +69,7 @@ void PrintCreateTable (std::string parentname, bool insert) {
               "        rec_exists boolean;\n"
               "begin\n"
               "        suffix := to_char(new.datetime, 'YYYYMM');\n"
-              "        schema := 'public';\n"
+              "        schema := '"+schema+"';\n"
               "        relname := '"+parentname+"_1h_' || suffix;\n"
               "        EXECUTE 'SELECT EXISTS(SELECT * FROM information_schema.tables WHERE table_schema = ' || quote_literal(schema) || ' AND table_name = ' || quote_literal(relname) || ')' INTO rel_exists;\n"
               "        IF rel_exists = 'f'\n"
@@ -64,20 +80,20 @@ void PrintCreateTable (std::string parentname, bool insert) {
               "                        ' (CONSTRAINT ' || relname || '_datetime_check CHECK (' || \n"
               "                        'datetime >= ' || quote_literal(this_mon) || '::timestamp without time zone AND ' || \n"
               "                        'datetime < ' || quote_literal(next_mon) || '::timestamp without time zone)' || \n"
-              "                        ') INHERITS (public."+parentname+") WITH (OIDS=FALSE)';\n"
+              "                        ') INHERITS ("+schema+"."+parentname+") WITH (OIDS=FALSE)';\n"
               "                EXECUTE 'CREATE UNIQUE INDEX ' || relname || '_idx ON ' || schema || '.' || relname || ' USING btree (datetime, ip_addr, type)';\n"
-              "                EXECUTE 'ALTER TABLE ' || relname || ' OWNER TO postgres';\n"
-              "                EXECUTE 'GRANT ALL ON TABLE ' || relname || ' TO postgres';\n"
+              "                EXECUTE 'ALTER TABLE ' || schema || '.' || relname || ' OWNER TO postgres';\n"
+              "                EXECUTE 'GRANT ALL ON TABLE ' || schema || '.' || relname || ' TO postgres';\n"
               "        END IF;\n"
               "\n"
-              "        EXECUTE 'SELECT EXISTS (SELECT * FROM ' || relname || ' WHERE datetime=' || quote_literal(new.datetime) || ' AND ip_addr=' || quote_literal(new.ip_addr) || ' AND type=' || new.type || ')' INTO rec_exists;\n"
+              "        EXECUTE 'SELECT EXISTS (SELECT * FROM ' || schema || '.' || relname || ' WHERE datetime=' || quote_literal(new.datetime) || ' AND ip_addr=' || quote_literal(new.ip_addr) || ' AND type=' || new.type || ')' INTO rec_exists;\n"
               "        IF NOT rec_exists\n"
               "        THEN\n"
               "\n"
-              "                EXECUTE format('insert into ' || relname || '(datetime,router_ip,ip_addr,in_bytes,out_bytes,type) VALUES($1,$2,$3,$4,$5,$6)')\n"
+              "                EXECUTE format('insert into ' || schema || '.' || relname || '(datetime,router_ip,ip_addr,in_bytes,out_bytes,type) VALUES($1,$2,$3,$4,$5,$6)')\n"
               "                        USING new.datetime,new.router_ip,new.ip_addr,new.in_bytes,new.out_bytes,new.type;\n"
               "        ELSE\n"
-              "                EXECUTE format('update ' || relname || ' set in_bytes=in_bytes+$1, out_bytes=out_bytes+$2 where datetime=$3 and ip_addr=$4 and type=$5') USING new.in_bytes,new.out_bytes, new.datetime,new.ip_addr,new.type;\n"
+              "                EXECUTE format('update ' || schema || '.' || relname || ' set in_bytes=in_bytes+$1, out_bytes=out_bytes+$2 where datetime=$3 and ip_addr=$4 and type=$5') USING new.in_bytes,new.out_bytes, new.datetime,new.ip_addr,new.type;\n"
               "        END IF;\n"
               "\n"
               "        relname := '"+parentname+"_1d_' || suffix;\n"
@@ -91,11 +107,11 @@ void PrintCreateTable (std::string parentname, bool insert) {
               "                        ' (CONSTRAINT ' || relname || '_datetime_check CHECK (' || \n"
               "                        'datetime >= ' || quote_literal(this_mon) || '::timestamp without time zone AND ' || \n"
               "                        'datetime < ' || quote_literal(next_mon) || '::timestamp without time zone)' || \n"
-              "                        ') INHERITS (public."+parentname+") WITH (OIDS=FALSE)';\n"
+              "                        ') INHERITS ("+schema+"."+parentname+") WITH (OIDS=FALSE)';\n"
               "\n"
               "                EXECUTE 'CREATE UNIQUE INDEX ' || relname || '_idx ON ' || schema || '.' || relname || ' USING btree (datetime, ip_addr, type)';\n"
-              "                EXECUTE 'ALTER TABLE ' || relname || ' OWNER TO postgres';\n"
-              "                EXECUTE 'GRANT ALL ON TABLE ' || relname || ' TO postgres';\n"
+              "                EXECUTE 'ALTER TABLE ' || schema || '.' || relname || ' OWNER TO postgres';\n"
+              "                EXECUTE 'GRANT ALL ON TABLE ' || schema || '.' || relname || ' TO postgres';\n"
               "        END IF;\n"
               "\n"
               "        return null;\n"
@@ -106,7 +122,7 @@ void PrintCreateTable (std::string parentname, bool insert) {
               "ALTER FUNCTION "+parentname+"_partitioning() OWNER TO postgres;\n"
             "CREATE TRIGGER partitioning\n"
             "  BEFORE INSERT\n"
-            "  ON "+parentname+"\n"
+            "  ON "+schema+"."+parentname+"\n"
             "  FOR EACH ROW\n"
             "  EXECUTE PROCEDURE "+parentname+"_partitioning();\n";
 }
@@ -162,7 +178,7 @@ int main(int argc, char **argv) {
                 usage();
         }
     }
-    if (configfile=="")
+    if (configfile==nullptr)
         usage();
 
     INIReader iniReader(configfile);
@@ -175,13 +191,15 @@ int main(int argc, char **argv) {
     std::string dbname = iniReader.Get("db","dbname","");
     std::string user = iniReader.Get("db","user","");
     std::string password = iniReader.Get("db","password","");
+    std::string schema = iniReader.Get("db","schema","public");
     std::string parentname = iniReader.Get("db","parent","traf_flow");
+    std::string tablespace = iniReader.Get("db", "tablespace", "");
     if (algorithm.size()==0)
         algorithm = iniReader.Get("db","algorithm","insert");
 
     if (initdb) {
 
-        PrintCreateTable (parentname, algorithm=="insert");
+        PrintCreateTable (schema, tablespace, parentname, algorithm=="insert");
         exit(0);
     }
     if (rfile== nullptr)
@@ -190,11 +208,14 @@ int main(int argc, char **argv) {
 //    std::string src = iniReader.Get("debug","src","");
 //    std::string dst = iniReader.Get("debug","dst","");
     std::string logPath = iniReader.Get("log","path","");
-    logStream = logPath.size()>0? freopen (logPath.c_str(), "a", stderr):stdout;
-    if (logStream==NULL) {
+    if (logPath.size()>0) {
 
-        LogError((char*)"Unable to open log path \"%s\"", logPath.c_str());
-        exit(1);
+        logStream = fopen (logPath.c_str(), "w+t");
+        if (logStream==NULL) {
+
+            LogError((char*)"Unable to open log path \"%s\"", logPath.c_str());
+            exit(1);
+        }
     }
     pg_conn_string = "host="+host+" dbname="+dbname+" user="+user+" password="+password;
     PGconn *pgConn = PQconnectdb(pg_conn_string.c_str());
@@ -203,14 +224,14 @@ int main(int argc, char **argv) {
         LogError((char*)"Error connecting to database\n");
         exit(255);
     }
-    NetStat nf(pgConn);
+    NetStat nf(pgConn, logStream);
     if (!nf.error) {
 
-        if (!nf.isProcessed(rfile,parentname) || force) {
+        if (!nf.isProcessed(rfile,schema,parentname) || force) {
 
-            LogInfo((char*)"Processing \"%s\" file...", rfile);
-            nf.StoreNetFlow(parentname, rfile, (algorithm=="insert"));
-            nf.saveProcessed(rfile, parentname);
+            LogInfo((char*)"Processing \"%s\" file", rfile);
+            nf.StoreNetFlow(schema, parentname, rfile, (algorithm=="insert"));
+            nf.saveProcessed(rfile, schema, parentname);
             LogInfo((char*)"%u data records processed, %u records skipped, %u records marked as ignored", nf.RecordsProcessed(), nf.RecordsSkipped(), nf.RecordsIgnored());
         }
         else

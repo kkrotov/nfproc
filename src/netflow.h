@@ -202,9 +202,10 @@ class NetStat : public AddressBook {
             skipped;
     std::string src;
     std::string dst;
+    FILE *processLog;
 
 public:
-    NetStat (PGconn *conn) : AddressBook(conn) { this->pgConn=conn; reccount=ignoredrec=skipped=0; };
+    NetStat (PGconn *conn, FILE *log) : AddressBook(conn) { this->pgConn=conn; this->processLog=log; reccount=ignoredrec=skipped=0; };
     unsigned RecordsProcessed() { return reccount;};
     //unsigned RecordsLocal() { return localrec; };
     unsigned RecordsIgnored() { return  ignoredrec; };
@@ -214,7 +215,7 @@ public:
     bool createTable(std::string parentname, std::string schema, std::string suffix, time_t timestamp, std::string &relname);
     bool checkParent(std::string schema, std::string parentname, bool insert);
     bool createParent(std::string schema, std::string parentname);
-    bool StoreNetFlow (std::string parentname, char *filename, bool insert);
+    bool StoreNetFlow (std::string parentname, std::string schema, char *filename, bool insert);
     bool CopyNetFlow(std::string parentname, char *filename, std::string src, std::string dst);
     bool WriteNetFlow (std::string rel_name, time_t timestamp);
     bool CopyNetFlow (char *rel_name, char *filename);
@@ -222,7 +223,7 @@ public:
     bool ReadNetFlow(std::string parentname);
     bool SaveNetFlow (std::string csvfilepath);
     //bool ProcessNetFlow();
-    bool InsertNetFlow (std::string relname);
+    bool InsertNetFlow (std::string relname,  std::string schema);
     bool InsertNetFlow2 (std::string relname, std::string schema);
     unsigned ProcessDataBlock (nffile_t *nffile_r);
     void addNetPeer (std::string router_ip, std::string source_addr, time_t datetime, NetFlowType type, unsigned long in_bytes, unsigned long out_bytes);
@@ -231,8 +232,8 @@ public:
     std::string GetRouterIp ();
     std::string GetSourceAddr ();
     std::string GetDestAddr ();
-    bool isProcessed(const std::string path, std::string parent);
-    bool saveProcessed(const std::string path, std::string parent);
+    bool isProcessed(const std::string path, std::string schema, std::string parent);
+    bool saveProcessed(const std::string path, std::string schema, std::string parent);
     time_t str2time (std::string datetime);
 };
 

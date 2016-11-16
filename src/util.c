@@ -54,6 +54,8 @@
 
 #ifdef HAVE_STDINT_H
 #include <stdint.h>
+#include <sys/time.h>
+
 #endif
 
 #include "util.h"
@@ -177,7 +179,13 @@ char string[512];
 	} else {
 		va_start(var_args, format);
 		vsnprintf(string, 511, format, var_args);
-		fprintf(stderr, "%s\n", string);
+		struct timeval tp;
+		gettimeofday(&tp, NULL);
+        time_t timestamp = tp.tv_sec;
+        struct tm *ts = localtime(&timestamp);
+        char datetime[64];
+        strftime(datetime, sizeof(datetime)-1, "%Y-%m-%d %H:%M:%S", ts);
+        fprintf(stderr, "%s.%u %s\n", datetime, tp.tv_usec / 1000, string);
 		va_end(var_args);
 	}
 	
@@ -196,7 +204,13 @@ char string[512];
 	} else {
 		va_start(var_args, format);
 		vsnprintf(string, 511, format, var_args);
-		fprintf(stderr, "%s\n", string);
+		struct timeval tp;
+		gettimeofday(&tp, NULL);
+		time_t timestamp = tp.tv_sec;
+		struct tm *ts = localtime(&timestamp);
+		char datetime[64];
+		strftime(datetime, sizeof(datetime)-1, "%Y-%m-%d %H:%M:%S", ts);
+		fprintf(stderr, "%s.%u %s\n", datetime, tp.tv_usec / 1000, string);
 		va_end(var_args);
 	}
 	

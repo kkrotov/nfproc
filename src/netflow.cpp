@@ -14,18 +14,19 @@ bool NetStat::CopyNetFlow(std::string parentname, char *filename, std::string sr
 
     this->src = src;    // DEBUG
     this->dst = dst;
-    return StoreNetFlow(parentname, filename, true);
+    return StoreNetFlow("public", parentname, filename, true);
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-bool NetStat::StoreNetFlow(std::string parentname, char *filename, bool insert) {
+bool NetStat::StoreNetFlow(std::string schema, std::string parentname, char *filename, bool insert) {
 
-    std::string schema = "public";
+//    std::string schema = "public";
     if (!tableExists(schema, parentname)) {
 
         LogError((char*)"Parent table %s does not exist", parentname.c_str());
         return false;
     }
+    LogInfo((char*)"Analysing net flow");
     if (!ReadNetFlow(filename))
         return false;
 
@@ -34,11 +35,12 @@ bool NetStat::StoreNetFlow(std::string parentname, char *filename, bool insert) 
         LogError((char*)"Net flow array is empty");
         return true;
     }
-    return insert? InsertNetFlow(parentname):InsertNetFlow2(parentname, schema);
+    LogInfo((char*)"Storing records to database");
+    return insert? InsertNetFlow(parentname, schema):InsertNetFlow2(parentname, schema);
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-bool NetStat::InsertNetFlow (std::string relname) {
+bool NetStat::InsertNetFlow (std::string relname, std::string schema) {
 
     PGresult *res = PQexec(pgConn, "BEGIN");
     if (PQresultStatus(res) != PGRES_COMMAND_OK) {
@@ -57,8 +59,8 @@ bool NetStat::InsertNetFlow (std::string relname) {
         struct tm *ts = localtime(&nf.timestamp);
         strftime(datetime, sizeof(datetime)-1, "%Y-%m-%d %H:%M:%S", ts);
         char sql[2048];
-        snprintf(sql, sizeof(sql), "INSERT INTO %s (datetime,router_ip,ip_addr,in_bytes,out_bytes,type) VALUES('%s','%s','%s',%llu,%llu,%u)",
-                 relname.c_str(), datetime, nf.router_ip.c_str(), nf.source_addr.c_str(), nf.in_bytes, nf.out_bytes,nf.type);
+        snprintf(sql, sizeof(sql), "INSERT INTO %s.%s (datetime,router_ip,ip_addr,in_bytes,out_bytes,type) VALUES('%s','%s','%s',%llu,%llu,%u)",
+                 schema.c_str(), relname.c_str(), datetime, nf.router_ip.c_str(), nf.source_addr.c_str(), nf.in_bytes, nf.out_bytes,nf.type);
 
         res = PQexec(pgConn, sql);
         ExecStatusType stat = PQresultStatus(res);
@@ -72,7 +74,7 @@ bool NetStat::InsertNetFlow (std::string relname) {
     }
     res = PQexec(pgConn, "END");
     PQclear(res);
-    LogInfo((char*)"%u records copied to %s", recordscopied, relname.c_str());
+    LogInfo((char*)"%u records copied to %s.%s", recordscopied, schema.c_str(), relname.c_str());
     return true;
 }
 
@@ -162,13 +164,13 @@ bool NetStat::ReadNetFlow (std::string childname) {
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-bool NetStat::isProcessed(const std::string path, std::string parent) {
+bool NetStat::isProcessed(const std::string path, std::string schema, std::string parent) {
 
     std::string filname = basename(path.c_str());
     if (filname.empty())
         return false;
 
-    std::string schema = "public";
+    //std::string schema = "public";
     std::string relname = "files_processed";
     if (!tableExists(schema, relname)) {
 
@@ -193,17 +195,17 @@ bool NetStat::isProcessed(const std::string path, std::string parent) {
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-bool NetStat::saveProcessed(const std::string path, std::string parent) {
+bool NetStat::saveProcessed(const std::string path, std::string schema, std::string parent) {
 
     std::string filname = basename(path.c_str());
     if (filname.empty())
         return false;
 
     std::string sql;
-    if (!isProcessed(path,parent))
-        sql="INSERT INTO public.files_processed (datetime,name,parent) values(now(),'"+filname+"','"+parent+"')";
+    if (!isProcessed(path,schema,parent))
+        sql="INSERT INTO "+schema+".files_processed (datetime,name,parent) values(now(),'"+filname+"','"+parent+"')";
     else
-        sql = "UPDATE public.files_processed SET datetime=now() WHERE name='"+filname+"' AND parent='"+parent+"'";
+        sql = "UPDATE "+schema+".files_processed SET datetime=now() WHERE name='"+filname+"' AND parent='"+parent+"'";
 
     PGresult *res = PQexec(pgConn, sql.c_str());
     return  PQresultStatus(res)==PGRES_COMMAND_OK;
@@ -477,14 +479,13 @@ unsigned NetStat::ProcessDataBlock (nffile_t *nffile_r) {
 
                     addNetPeer (GetRouterIp (), dest_ip, start_of_hour, type, master_record->dOctets, master_record->out_bytes);
                 }
-                if (source_rec==nullptr && dest_rec==nullptr) {
+                if (source_rec==nullptr && dest_rec==nullptr && processLog!= nullptr) {
 
                     time_t timestamp = master_record->first;
                     struct tm *ts = localtime(&timestamp);
                     char datetime[64];
                     strftime(datetime, sizeof(datetime)-1, "%Y-%m-%d %H:%M:%S", ts);
-                    LogError((char*)"%s\t%s\t%s\t%lld\t%lld", datetime, source_ip.c_str(), dest_ip.c_str(),
-                             (long long)master_record->dOctets, (long long)master_record->out_bytes);
+                    fprintf(processLog, (char*)"%s\t%s\t%s\t%lld\t%lld\n", datetime, source_ip.c_str(), dest_ip.c_str(), (long long)master_record->dOctets, (long long)master_record->out_bytes);
                     skipped++;
                 }
             } break;
