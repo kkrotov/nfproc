@@ -210,7 +210,7 @@ int main(int argc, char **argv) {
     std::string logPath = iniReader.Get("log","path","");
     if (logPath.size()>0) {
 
-        logStream = fopen (logPath.c_str(), "w+t");
+        logStream = fopen (logPath.c_str(), "a+t");
         if (logStream==NULL) {
 
             LogError((char*)"Unable to open log path \"%s\"", logPath.c_str());
