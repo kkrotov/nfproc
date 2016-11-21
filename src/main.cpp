@@ -226,7 +226,8 @@ int main(int argc, char **argv) {
     PGconn *pgConn = PQconnectdb(pg_conn_string.c_str());
     if (PQstatus(pgConn) != CONNECTION_OK) {
 
-        LogError((char*)"Error connecting to database\n");
+        std::string message = PQerrorMessage(pgConn);
+        LogError((char*)"Error connecting to database: %s\n", message.c_str());
         exit(255);
     }
     NetStat nf(pgConn, logStream);
