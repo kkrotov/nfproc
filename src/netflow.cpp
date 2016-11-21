@@ -95,7 +95,7 @@ bool NetStat::InsertNetFlow2 (std::string parentname, std::string schema) {
 //    if (!ReadNetFlow(relname))
 //        return false;
 
-    if (!WriteNetFlow (relname, tm_min))
+    if (!WriteNetFlow (schema, relname, tm_min))
         return false;
 
     if (sameMonth(tm_min, tm_max))
@@ -106,7 +106,7 @@ bool NetStat::InsertNetFlow2 (std::string parentname, std::string schema) {
         LogError((char*)"Unable to create %s", relname.c_str());
         return false;
     }
-    return WriteNetFlow (relname, tm_max);
+    return WriteNetFlow (schema, relname, tm_max);
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -281,7 +281,9 @@ bool NetStat::createPartition(std::string schema, std::string relname, std::stri
 
     std::string sql = "SET client_min_messages = error;"
                       "CREATE TABLE IF NOT EXISTS "+schema+"."+relname+"() INHERITS ("+schema+"."+parentname+");"
-                      "ALTER TABLE "+relname+" OWNER TO postgres;"
+                      "ALTER TABLE "+schema+"."+relname+" OWNER TO postgres;"
+                      "GRANT ALL ON TABLE "+schema+"."+relname+" TO postgres;"
+                      "GRANT ALL ON TABLE "+schema+"."+relname+" TO g_trafflow;"
                       "CREATE "+(unique_index? "UNIQUE":"")+" INDEX "+relname+"_idx ON "+schema+"."+relname+" USING btree (datetime, ip_addr, type);";
     PGresult *res = PQexec(pgConn, sql.c_str());
     if (PQresultStatus(res) != PGRES_COMMAND_OK) {
@@ -307,7 +309,7 @@ bool NetStat::CopyNetFlow (char *rel_name, char *filename) {
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-bool NetStat::WriteNetFlow (std::string relname, time_t timestamp) {
+bool NetStat::WriteNetFlow (std::string schema, std::string relname, time_t timestamp) {
 
 //    PGresult *res = PQexec(pgConn, "BEGIN");
 //    if (PQresultStatus(res) != PGRES_COMMAND_OK) {
@@ -322,7 +324,7 @@ bool NetStat::WriteNetFlow (std::string relname, time_t timestamp) {
 //        PQclear(res);
 //        return false;
 //    }
-    std::string sql = "COPY " + relname + " FROM STDIN DELIMITER ',' CSV header";
+    std::string sql = "COPY " + schema+"."+relname + " FROM STDIN DELIMITER ',' CSV header";
     PGresult *res = PQexec(pgConn, sql.c_str());
     ExecStatusType stat = PQresultStatus(res);
     if (stat != PGRES_COPY_IN) {

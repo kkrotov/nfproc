@@ -33,20 +33,6 @@ void PrintCreateTable (std::string schema, std::string tablespace, std::string p
         tablespace = "TABLESPACE "+tablespace;
     }
     std::cout << "CREATE SCHEMA IF NOT EXISTS "+schema+";\n";
-    if (!insert) {
-
-        std::cout << "CREATE TABLE "+schema+"."+parentname+"\n"
-                "(\n"
-                "  datetime timestamp without time zone,\n"
-                "  router_ip inet,\n"
-                "  ip_addr inet,\n"
-                "  in_bytes bigint,\n"
-                "  out_bytes bigint,\n"
-                "  type integer\n"
-                ") "+tablespace+";\n"
-                "ALTER TABLE "+schema+"."+parentname+" OWNER TO postgres;\n";
-        return;
-    }
     std::cout << "CREATE TABLE "+schema+"."+parentname+"\n"
             "(\n"
             "  datetime timestamp without time zone,\n"
@@ -57,7 +43,24 @@ void PrintCreateTable (std::string schema, std::string tablespace, std::string p
             "  type integer\n"
             ") "+tablespace+";\n"
             "ALTER TABLE "+schema+"."+parentname+" OWNER TO postgres;\n"
-            "CREATE OR REPLACE FUNCTION "+schema+"."+parentname+"_partitioning() RETURNS trigger AS\n"
+            "GRANT ALL ON TABLE "+schema+"." +parentname+" TO postgres;\n"
+            "GRANT ALL ON TABLE "+schema+"." +parentname+" TO g_trafflow;\n;";
+
+    if (!insert) {
+
+//        std::cout << "CREATE TABLE "+schema+"."+parentname+"\n"
+//                "(\n"
+//                "  datetime timestamp without time zone,\n"
+//                "  router_ip inet,\n"
+//                "  ip_addr inet,\n"
+//                "  in_bytes bigint,\n"
+//                "  out_bytes bigint,\n"
+//                "  type integer\n"
+//                ") "+tablespace+";\n"
+//                "ALTER TABLE "+schema+"."+parentname+" OWNER TO postgres;\n";
+        return;
+    }
+    std::cout << "CREATE OR REPLACE FUNCTION "+schema+"."+parentname+"_partitioning() RETURNS trigger AS\n"
               "$BODY$\n"
               "declare\n"
               "        relname varchar;\n"

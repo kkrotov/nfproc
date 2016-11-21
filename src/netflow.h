@@ -217,7 +217,7 @@ public:
     bool createParent(std::string schema, std::string parentname);
     bool StoreNetFlow (std::string parentname, std::string schema, char *filename, bool insert);
     bool CopyNetFlow(std::string parentname, char *filename, std::string src, std::string dst);
-    bool WriteNetFlow (std::string rel_name, time_t timestamp);
+    bool WriteNetFlow (std::string schema, std::string rel_name, time_t timestamp);
     bool CopyNetFlow (char *rel_name, char *filename);
     bool ReadNetFlow(char *rfile);
     bool ReadNetFlow(std::string parentname);
