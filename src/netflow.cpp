@@ -171,11 +171,11 @@ bool NetStat::isProcessed(const std::string path, std::string schema, std::strin
         return false;
 
     //std::string schema = "public";
-    std::string relname = "files_processed";
+    std::string relname = "traf_files";
     if (!tableExists(schema, relname)) {
 
         std::string sql = "CREATE TABLE "+schema+"."+relname+"(datetime timestamp without time zone,name character varying, parent character varying);"
-                "ALTER TABLE "+relname+" OWNER TO postgres;"
+                "ALTER TABLE "+relname+" OWNER TO g_trafflow;"
                                   "CREATE UNIQUE INDEX "+relname+"_idx ON "+schema+"."+relname+" USING btree (name,parent);";
         PGresult *res = PQexec(pgConn, sql.c_str());
         if (PQresultStatus(res) != PGRES_COMMAND_OK) {
@@ -203,9 +203,9 @@ bool NetStat::saveProcessed(const std::string path, std::string schema, std::str
 
     std::string sql;
     if (!isProcessed(path,schema,parent))
-        sql="INSERT INTO "+schema+".files_processed (datetime,name,parent) values(now(),'"+filname+"','"+parent+"')";
+        sql="INSERT INTO "+schema+".traf_files (datetime,name,parent) values(now(),'"+filname+"','"+parent+"')";
     else
-        sql = "UPDATE "+schema+".files_processed SET datetime=now() WHERE name='"+filname+"' AND parent='"+parent+"'";
+        sql = "UPDATE "+schema+".traf_files SET datetime=now() WHERE name='"+filname+"' AND parent='"+parent+"'";
 
     PGresult *res = PQexec(pgConn, sql.c_str());
     return  PQresultStatus(res)==PGRES_COMMAND_OK;
@@ -281,8 +281,7 @@ bool NetStat::createPartition(std::string schema, std::string relname, std::stri
 
     std::string sql = "SET client_min_messages = error;"
                       "CREATE TABLE IF NOT EXISTS "+schema+"."+relname+"() INHERITS ("+schema+"."+parentname+");"
-                      "ALTER TABLE "+schema+"."+relname+" OWNER TO postgres;"
-                      "GRANT ALL ON TABLE "+schema+"."+relname+" TO postgres;"
+                      "ALTER TABLE "+schema+"."+relname+" OWNER TO g_trafflow;"
                       "GRANT ALL ON TABLE "+schema+"."+relname+" TO g_trafflow;"
                       "CREATE "+(unique_index? "UNIQUE":"")+" INDEX "+relname+"_idx ON "+schema+"."+relname+" USING btree (datetime, ip_addr, type);";
     PGresult *res = PQexec(pgConn, sql.c_str());

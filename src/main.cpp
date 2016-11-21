@@ -33,6 +33,20 @@ void PrintCreateTable (std::string schema, std::string tablespace, std::string p
         tablespace = "TABLESPACE "+tablespace;
     }
     std::cout << "CREATE SCHEMA IF NOT EXISTS "+schema+";\n";
+    std::cout << "CREATE TABLE "+schema+".traf_files ("
+            "  datetime timestamp without time zone,\n"
+            "  name character varying,\n"
+            "  parent character varying\n"
+            ") "+tablespace+";\n"
+            "ALTER TABLE flow.files_processed OWNER TO g_trafflow;";
+
+    std::cout << "CREATE TABLE flow.traf_settings\n"
+            "(\n"
+            "  ip_addr inet,\n"
+            "  type integer,\n"
+            "  ignored boolean\n"
+            ") "+tablespace+";\n"
+            "ALTER TABLE flow.traf_settings  OWNER TO g_trafflow;";
     std::cout << "CREATE TABLE "+schema+"."+parentname+"\n"
             "(\n"
             "  datetime timestamp without time zone,\n"
@@ -42,8 +56,7 @@ void PrintCreateTable (std::string schema, std::string tablespace, std::string p
             "  out_bytes bigint,\n"
             "  type integer\n"
             ") "+tablespace+";\n"
-            "ALTER TABLE "+schema+"."+parentname+" OWNER TO postgres;\n"
-            "GRANT ALL ON TABLE "+schema+"." +parentname+" TO postgres;\n"
+            "ALTER TABLE "+schema+"."+parentname+" OWNER TO g_trafflow;\n"
             "GRANT ALL ON TABLE "+schema+"." +parentname+" TO g_trafflow;\n;";
 
     if (!insert) {
@@ -85,8 +98,7 @@ void PrintCreateTable (std::string schema, std::string tablespace, std::string p
               "                        'datetime < ' || quote_literal(next_mon) || '::timestamp without time zone)' || \n"
               "                        ') INHERITS ("+schema+"."+parentname+") WITH (OIDS=FALSE)';\n"
               "                EXECUTE 'CREATE UNIQUE INDEX ' || relname || '_idx ON ' || schema || '.' || relname || ' USING btree (datetime, ip_addr, type)';\n"
-              "                EXECUTE 'ALTER TABLE ' || schema || '.' || relname || ' OWNER TO postgres';\n"
-              "                EXECUTE 'GRANT ALL ON TABLE ' || schema || '.' || relname || ' TO postgres';\n"
+              "                EXECUTE 'ALTER TABLE ' || schema || '.' || relname || ' OWNER TO g_trafflow';\n"
               "                EXECUTE 'GRANT ALL ON TABLE ' || schema || '.' || relname || ' TO g_trafflow';"
               "        END IF;\n"
               "\n"
@@ -114,8 +126,7 @@ void PrintCreateTable (std::string schema, std::string tablespace, std::string p
               "                        ') INHERITS ("+schema+"."+parentname+") WITH (OIDS=FALSE)';\n"
               "\n"
               "                EXECUTE 'CREATE UNIQUE INDEX ' || relname || '_idx ON ' || schema || '.' || relname || ' USING btree (datetime, ip_addr, type)';\n"
-              "                EXECUTE 'ALTER TABLE ' || schema || '.' || relname || ' OWNER TO postgres';\n"
-              "                EXECUTE 'GRANT ALL ON TABLE ' || schema || '.' || relname || ' TO postgres';\n"
+              "                EXECUTE 'ALTER TABLE ' || schema || '.' || relname || ' OWNER TO g_trafflow';\n"
               "                EXECUTE 'GRANT ALL ON TABLE ' || schema || '.' || relname || ' TO g_trafflow';"
               "        END IF;\n"
               "\n"
@@ -124,7 +135,7 @@ void PrintCreateTable (std::string schema, std::string tablespace, std::string p
               "$BODY$\n"
               "  LANGUAGE plpgsql VOLATILE\n"
               "  COST 100;\n"
-              "ALTER FUNCTION "+schema+"."+parentname+"_partitioning() OWNER TO postgres;\n"
+              "ALTER FUNCTION "+schema+"."+parentname+"_partitioning() OWNER TO g_trafflow;\n"
             "CREATE TRIGGER partitioning\n"
             "  BEFORE INSERT\n"
             "  ON "+schema+"."+parentname+"\n"
