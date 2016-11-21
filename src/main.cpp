@@ -38,15 +38,15 @@ void PrintCreateTable (std::string schema, std::string tablespace, std::string p
             "  name character varying,\n"
             "  parent character varying\n"
             ") "+tablespace+";\n"
-            "ALTER TABLE flow.files_processed OWNER TO g_trafflow;";
+            "ALTER TABLE "+schema+".traf_files OWNER TO g_trafflow;";
 
-    std::cout << "CREATE TABLE flow.traf_settings\n"
+    std::cout << "CREATE TABLE "+schema+".traf_settings\n"
             "(\n"
             "  ip_addr inet,\n"
             "  type integer,\n"
             "  ignored boolean\n"
             ") "+tablespace+";\n"
-            "ALTER TABLE flow.traf_settings  OWNER TO g_trafflow;";
+            "ALTER TABLE "+schema+".traf_settings  OWNER TO g_trafflow;";
     std::cout << "CREATE TABLE "+schema+"."+parentname+"\n"
             "(\n"
             "  datetime timestamp without time zone,\n"
