@@ -230,7 +230,7 @@ int main(int argc, char **argv) {
         LogError((char*)"Error connecting to database [%s]: %s\n", pg_conn_string.c_str(), message.c_str());
         exit(255);
     }
-    NetStat nf(pgConn, logStream);
+    NetStat nf(pgConn, schema, logStream);
     if (!nf.error) {
 
         if (!nf.isProcessed(rfile,schema,parentname) || force) {

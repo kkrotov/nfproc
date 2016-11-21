@@ -46,12 +46,12 @@ class AddressBook {
 public:
     bool error= false;
 
-    AddressBook(PGconn *conn) {
+    AddressBook(PGconn *conn, std::string schema) {
 
 //        if (!createTable (conn))
 //            return ;
 
-        std::string sql = "select ip_addr::cidr, type, ignored, family(ip_addr) from traf_settings";
+        std::string sql = "select ip_addr::cidr, type, ignored, family(ip_addr) from "+schema+".traf_settings";
         PGresult *res = PQexec(conn, sql.c_str());
         if (PQresultStatus(res) != PGRES_TUPLES_OK) {
 
@@ -205,7 +205,7 @@ class NetStat : public AddressBook {
     FILE *processLog;
 
 public:
-    NetStat (PGconn *conn, FILE *log) : AddressBook(conn) { this->pgConn=conn; this->processLog=log; reccount=ignoredrec=skipped=0; };
+    NetStat (PGconn *conn, std::string schema, FILE *log) : AddressBook(conn, schema) { this->pgConn=conn; this->processLog=log; reccount=ignoredrec=skipped=0; };
     unsigned RecordsProcessed() { return reccount;};
     //unsigned RecordsLocal() { return localrec; };
     unsigned RecordsIgnored() { return  ignoredrec; };
