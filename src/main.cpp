@@ -57,7 +57,7 @@ void PrintCreateTable (std::string schema, std::string tablespace, std::string p
             "  type integer\n"
             ") "+tablespace+";\n"
             "ALTER TABLE "+schema+"."+parentname+" OWNER TO postgres;\n"
-            "CREATE OR REPLACE FUNCTION "+parentname+"_partitioning() RETURNS trigger AS\n"
+            "CREATE OR REPLACE FUNCTION "+schema+"."+parentname+"_partitioning() RETURNS trigger AS\n"
               "$BODY$\n"
               "declare\n"
               "        relname varchar;\n"
@@ -84,6 +84,7 @@ void PrintCreateTable (std::string schema, std::string tablespace, std::string p
               "                EXECUTE 'CREATE UNIQUE INDEX ' || relname || '_idx ON ' || schema || '.' || relname || ' USING btree (datetime, ip_addr, type)';\n"
               "                EXECUTE 'ALTER TABLE ' || schema || '.' || relname || ' OWNER TO postgres';\n"
               "                EXECUTE 'GRANT ALL ON TABLE ' || schema || '.' || relname || ' TO postgres';\n"
+              "                EXECUTE 'GRANT ALL ON TABLE ' || schema || '.' || relname || ' TO g_trafflow';"
               "        END IF;\n"
               "\n"
               "        EXECUTE 'SELECT EXISTS (SELECT * FROM ' || schema || '.' || relname || ' WHERE datetime=' || quote_literal(new.datetime) || ' AND ip_addr=' || quote_literal(new.ip_addr) || ' AND type=' || new.type || ')' INTO rec_exists;\n"
@@ -112,6 +113,7 @@ void PrintCreateTable (std::string schema, std::string tablespace, std::string p
               "                EXECUTE 'CREATE UNIQUE INDEX ' || relname || '_idx ON ' || schema || '.' || relname || ' USING btree (datetime, ip_addr, type)';\n"
               "                EXECUTE 'ALTER TABLE ' || schema || '.' || relname || ' OWNER TO postgres';\n"
               "                EXECUTE 'GRANT ALL ON TABLE ' || schema || '.' || relname || ' TO postgres';\n"
+              "                EXECUTE 'GRANT ALL ON TABLE ' || schema || '.' || relname || ' TO g_trafflow';"
               "        END IF;\n"
               "\n"
               "        return null;\n"
@@ -119,12 +121,12 @@ void PrintCreateTable (std::string schema, std::string tablespace, std::string p
               "$BODY$\n"
               "  LANGUAGE plpgsql VOLATILE\n"
               "  COST 100;\n"
-              "ALTER FUNCTION "+parentname+"_partitioning() OWNER TO postgres;\n"
+              "ALTER FUNCTION "+schema+"."+parentname+"_partitioning() OWNER TO postgres;\n"
             "CREATE TRIGGER partitioning\n"
             "  BEFORE INSERT\n"
             "  ON "+schema+"."+parentname+"\n"
             "  FOR EACH ROW\n"
-            "  EXECUTE PROCEDURE "+parentname+"_partitioning();\n";
+            "  EXECUTE PROCEDURE "+schema+"."+parentname+"_partitioning();\n";
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
