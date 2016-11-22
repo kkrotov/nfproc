@@ -175,8 +175,8 @@ bool NetStat::isProcessed(const std::string path, std::string schema, std::strin
     if (!tableExists(schema, relname)) {
 
         std::string sql = "CREATE TABLE "+schema+"."+relname+"(datetime timestamp without time zone,name character varying, parent character varying);"
-                "ALTER TABLE "+relname+" OWNER TO g_trafflow;"
-                                  "CREATE UNIQUE INDEX "+relname+"_idx ON "+schema+"."+relname+" USING btree (name,parent);";
+                            "ALTER TABLE "+relname+" OWNER TO "+this->owner+";"
+                            "CREATE UNIQUE INDEX "+relname+"_idx ON "+schema+"."+relname+" USING btree (name,parent);";
         PGresult *res = PQexec(pgConn, sql.c_str());
         if (PQresultStatus(res) != PGRES_COMMAND_OK) {
 
@@ -281,8 +281,8 @@ bool NetStat::createPartition(std::string schema, std::string relname, std::stri
 
     std::string sql = "SET client_min_messages = error;"
                       "CREATE TABLE IF NOT EXISTS "+schema+"."+relname+"() INHERITS ("+schema+"."+parentname+");"
-                      "ALTER TABLE "+schema+"."+relname+" OWNER TO g_trafflow;"
-                      "GRANT ALL ON TABLE "+schema+"."+relname+" TO g_trafflow;"
+                      "ALTER TABLE "+schema+"."+relname+" OWNER TO "+this->owner+";"
+                      "GRANT ALL ON TABLE "+schema+"."+relname+" TO "+this->owner+";"
                       "CREATE "+(unique_index? "UNIQUE":"")+" INDEX "+relname+"_idx ON "+schema+"."+relname+" USING btree (datetime, ip_addr, type);";
     PGresult *res = PQexec(pgConn, sql.c_str());
     if (PQresultStatus(res) != PGRES_COMMAND_OK) {

@@ -26,28 +26,28 @@ void usage () {
 //}
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-void PrintCreateTable (std::string schema, std::string tablespace, std::string parentname, bool insert) {
+void PrintCreateTable (std::string schema, std::string tablespace, std::string parentname, std::string owner, bool insert) {
 
     if (!tablespace.empty()) {
 
         tablespace = "TABLESPACE "+tablespace;
     }
     std::cout << "CREATE SCHEMA IF NOT EXISTS "+schema+";\n";
-    std::cout << "CREATE TABLE "+schema+".traf_files ("
+    std::cout << "CREATE TABLE IF NOT EXISTS "+schema+".traf_files (\n"
             "  datetime timestamp without time zone,\n"
             "  name character varying,\n"
             "  parent character varying\n"
             ") "+tablespace+";\n"
-            "ALTER TABLE "+schema+".traf_files OWNER TO g_trafflow;";
+            "ALTER TABLE "+schema+".traf_files OWNER TO "+owner+";\n";
 
-    std::cout << "CREATE TABLE "+schema+".traf_settings\n"
+    std::cout << "CREATE TABLE IF NOT EXISTS "+schema+".traf_settings\n"
             "(\n"
             "  ip_addr inet,\n"
             "  type integer,\n"
             "  ignored boolean\n"
             ") "+tablespace+";\n"
-            "ALTER TABLE "+schema+".traf_settings  OWNER TO g_trafflow;";
-    std::cout << "CREATE TABLE "+schema+"."+parentname+"\n"
+            "ALTER TABLE "+schema+".traf_settings  OWNER TO "+owner+";\n";
+    std::cout << "CREATE TABLE IF NOT EXISTS "+schema+"."+parentname+"\n"
             "(\n"
             "  datetime timestamp without time zone,\n"
             "  router_ip inet,\n"
@@ -56,8 +56,8 @@ void PrintCreateTable (std::string schema, std::string tablespace, std::string p
             "  out_bytes bigint,\n"
             "  type integer\n"
             ") "+tablespace+";\n"
-            "ALTER TABLE "+schema+"."+parentname+" OWNER TO g_trafflow;\n"
-            "GRANT ALL ON TABLE "+schema+"." +parentname+" TO g_trafflow;\n;";
+            "ALTER TABLE "+schema+"."+parentname+" OWNER TO "+owner+";\n"
+            "GRANT ALL ON TABLE "+schema+"." +parentname+" TO "+owner+";\n";
 
     if (!insert) {
 
@@ -98,8 +98,8 @@ void PrintCreateTable (std::string schema, std::string tablespace, std::string p
               "                        'datetime < ' || quote_literal(next_mon) || '::timestamp without time zone)' || \n"
               "                        ') INHERITS ("+schema+"."+parentname+") WITH (OIDS=FALSE)';\n"
               "                EXECUTE 'CREATE UNIQUE INDEX ' || relname || '_idx ON ' || schema || '.' || relname || ' USING btree (datetime, ip_addr, type)';\n"
-              "                EXECUTE 'ALTER TABLE ' || schema || '.' || relname || ' OWNER TO g_trafflow';\n"
-              "                EXECUTE 'GRANT ALL ON TABLE ' || schema || '.' || relname || ' TO g_trafflow';"
+              "                EXECUTE 'ALTER TABLE ' || schema || '.' || relname || ' OWNER TO "+owner+"';\n"
+              "                EXECUTE 'GRANT ALL ON TABLE ' || schema || '.' || relname || ' TO "+owner+"';"
               "        END IF;\n"
               "\n"
               "        EXECUTE 'SELECT EXISTS (SELECT * FROM ' || schema || '.' || relname || ' WHERE datetime=' || quote_literal(new.datetime) || ' AND ip_addr=' || quote_literal(new.ip_addr) || ' AND type=' || new.type || ')' INTO rec_exists;\n"
@@ -126,8 +126,8 @@ void PrintCreateTable (std::string schema, std::string tablespace, std::string p
               "                        ') INHERITS ("+schema+"."+parentname+") WITH (OIDS=FALSE)';\n"
               "\n"
               "                EXECUTE 'CREATE UNIQUE INDEX ' || relname || '_idx ON ' || schema || '.' || relname || ' USING btree (datetime, ip_addr, type)';\n"
-              "                EXECUTE 'ALTER TABLE ' || schema || '.' || relname || ' OWNER TO g_trafflow';\n"
-              "                EXECUTE 'GRANT ALL ON TABLE ' || schema || '.' || relname || ' TO g_trafflow';"
+              "                EXECUTE 'ALTER TABLE ' || schema || '.' || relname || ' OWNER TO "+owner+"';\n"
+              "                EXECUTE 'GRANT ALL ON TABLE ' || schema || '.' || relname || ' TO "+owner+"';"
               "        END IF;\n"
               "\n"
               "        return null;\n"
@@ -135,7 +135,8 @@ void PrintCreateTable (std::string schema, std::string tablespace, std::string p
               "$BODY$\n"
               "  LANGUAGE plpgsql VOLATILE\n"
               "  COST 100;\n"
-              "ALTER FUNCTION "+schema+"."+parentname+"_partitioning() OWNER TO g_trafflow;\n"
+              "ALTER FUNCTION "+schema+"."+parentname+"_partitioning() OWNER TO "+owner+";\n"
+            "DROP TRIGGER IF EXISTS partitioning ON "+schema+"."+parentname+";\n"
             "CREATE TRIGGER partitioning\n"
             "  BEFORE INSERT\n"
             "  ON "+schema+"."+parentname+"\n"
@@ -210,12 +211,13 @@ int main(int argc, char **argv) {
     std::string schema = iniReader.Get("db","schema","public");
     std::string parentname = iniReader.Get("db","parent","traf_flow");
     std::string tablespace = iniReader.Get("db", "tablespace", "");
+    std::string owner = iniReader.Get("db", "owner", "g_trafflow");
     if (algorithm.size()==0)
         algorithm = iniReader.Get("db","algorithm","insert");
 
     if (initdb) {
 
-        PrintCreateTable (schema, tablespace, parentname, algorithm=="insert");
+        PrintCreateTable (schema, tablespace, parentname, owner, algorithm=="insert");
         exit(0);
     }
     if (rfile== nullptr)
@@ -238,17 +240,18 @@ int main(int argc, char **argv) {
     if (PQstatus(pgConn) != CONNECTION_OK) {
 
         std::string message = PQerrorMessage(pgConn);
-        LogError((char*)"Error connecting to database [%s]: %s\n", pg_conn_string.c_str(), message.c_str());
+        LogError((char*)"Error connecting to database PQconnectdb(\"%s\": %s\n", pg_conn_string.c_str(), message.c_str());
         exit(255);
     }
-    NetStat nf(pgConn, schema, logStream);
+    NetStat nf(pgConn, schema, owner, logStream);
     if (!nf.error) {
 
         if (!nf.isProcessed(rfile,schema,parentname) || force) {
 
             LogInfo((char*)"Processing \"%s\" file", rfile);
-            nf.StoreNetFlow(schema, parentname, rfile, (algorithm=="insert"));
-            nf.saveProcessed(rfile, schema, parentname);
+            if (nf.StoreNetFlow(schema, parentname, rfile, (algorithm=="insert")))
+                nf.saveProcessed(rfile, schema, parentname);
+
             LogInfo((char*)"%u data records processed, %u records skipped, %u records marked as ignored", nf.RecordsProcessed(), nf.RecordsSkipped(), nf.RecordsIgnored());
         }
         else

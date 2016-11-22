@@ -200,12 +200,13 @@ class NetStat : public AddressBook {
             //localrec,
             ignoredrec,
             skipped;
+    std::string owner;
     std::string src;
     std::string dst;
     FILE *processLog;
 
 public:
-    NetStat (PGconn *conn, std::string schema, FILE *log) : AddressBook(conn, schema) { this->pgConn=conn; this->processLog=log; reccount=ignoredrec=skipped=0; };
+    NetStat (PGconn *conn, std::string schema, std::string owner, FILE *log) : AddressBook(conn, schema) { this->pgConn=conn; this->owner=owner; this->processLog=log; reccount=ignoredrec=skipped=0; };
     unsigned RecordsProcessed() { return reccount;};
     //unsigned RecordsLocal() { return localrec; };
     unsigned RecordsIgnored() { return  ignoredrec; };
