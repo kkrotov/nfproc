@@ -42,6 +42,7 @@ public:
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 class AddressBook {
 
+    // https://www.postgresql.org/docs/8.2/static/functions-net.html
     std::vector<AddressRec> addr_rec;
 public:
     bool error= false;

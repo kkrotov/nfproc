@@ -10,7 +10,7 @@ FILE *logStream;
 void usage () {
 
 //    printf("nfproc -r nfcapd_file_path -C \"host=<address> dbname=<database_name> user=<user_id> password=<password>\"\n");
-    printf("nf2postgres -c config_file_path -initdb -r nfcapd_file_path -f\n");
+    printf("nf2postgres -j data_file -c config_file_path -initdb -r nfcapd_file_path -f\n");
     exit(1);
 }
 
@@ -150,17 +150,23 @@ int main(int argc, char **argv) {
     int c;
     std::string pg_conn_string;
     char *rfile = nullptr,
-            *configfile = nullptr;
+         *configfile = nullptr,
+         *UnCompress_file = nullptr;
+
     std::string algorithm;
     bool force = false, initdb = false;
 
-    while ((c = getopt(argc, argv, "h:i:r:c:a:f::")) != EOF) {
+    while ((c = getopt(argc, argv, "h:i:r:c:a:j:f::")) != EOF) {
 
         switch (c) {
 
 //            case 'C':
 //                pg_conn_string = optarg;
 //                break;
+            case 'j':
+                UnCompress_file = optarg;
+                UnCompressFile(UnCompress_file);
+                exit(0);
             case 'i':
                 if (strcmp(optarg, "nitdb"))
                     usage();
