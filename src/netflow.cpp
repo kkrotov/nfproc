@@ -82,12 +82,12 @@ bool NetStat::InsertNetFlow (std::string relname, std::string schema) {
 bool NetStat::InsertNetFlow2 (std::string parentname, std::string schema) {
 
     std::string relname;
-    if (!createTable(parentname, schema, "1d", tm_min, relname)) {
-
-        LogError((char*)"Unable to create %s", relname.c_str());
-        return false;
-    }
-    if (!createTable(parentname, schema, "1h", tm_min, relname)) {
+//    if (!createTable(parentname, schema, "1d", tm_min, relname)) {
+//
+//        LogError((char*)"Unable to create %s", relname.c_str());
+//        return false;
+//    }
+    if (!createTable(parentname, schema, "", tm_min, relname)) {
 
         LogError((char*)"Unable to create %s", relname.c_str());
         return false;
@@ -234,7 +234,10 @@ std::string NetStat::relName(std::string name, std::string suffix, time_t dateti
 
     struct tm *temp = localtime(&datetime);
     char relname[128];
-    std::string format = name+"_"+suffix+"_%4d%02d";
+    if (suffix.size()>0)
+        suffix += "_";
+
+    std::string format = name+"_"+suffix+"%4d%02d";
     snprintf (relname, sizeof(relname), format.c_str(), temp->tm_year+1900, temp->tm_mon+1);
     return std::string(relname);
 }

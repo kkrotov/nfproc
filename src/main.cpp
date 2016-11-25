@@ -4,6 +4,7 @@
 #include <cstring>
 #include "netflow.h"
 #include "IniReader.h"
+void PrintCreateParent (std::string schema, std::string tablespace, std::string parentname, std::string owner, bool insert);
 FILE *logStream;
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -30,23 +31,31 @@ void PrintCreateTable (std::string schema, std::string tablespace, std::string p
 
     if (!tablespace.empty()) {
 
-        tablespace = "TABLESPACE "+tablespace;
+        tablespace = "TABLESPACE " + tablespace;
     }
-    std::cout << "CREATE SCHEMA IF NOT EXISTS "+schema+";\n";
-    std::cout << "CREATE TABLE IF NOT EXISTS "+schema+".traf_files (\n"
+    std::cout << "CREATE SCHEMA IF NOT EXISTS " + schema + ";\n";
+    std::cout << "CREATE TABLE IF NOT EXISTS " + schema + ".traf_files (\n"
             "  datetime timestamp without time zone,\n"
             "  name character varying,\n"
             "  parent character varying\n"
-            ") "+tablespace+";\n"
-            "ALTER TABLE "+schema+".traf_files OWNER TO "+owner+";\n";
+            ") " + tablespace + ";\n"
+                         "ALTER TABLE " + schema + ".traf_files OWNER TO " + owner + ";\n";
 
-    std::cout << "CREATE TABLE IF NOT EXISTS "+schema+".traf_settings\n"
+    std::cout << "CREATE TABLE IF NOT EXISTS " + schema + ".traf_settings\n"
             "(\n"
             "  ip_addr inet,\n"
             "  type integer,\n"
             "  ignored boolean\n"
-            ") "+tablespace+";\n"
-            "ALTER TABLE "+schema+".traf_settings  OWNER TO "+owner+";\n";
+            ") " + tablespace + ";\n"
+                         "ALTER TABLE " + schema + ".traf_settings  OWNER TO " + owner + ";\n";
+
+    PrintCreateParent (schema, tablespace, parentname+"_1d", owner, insert);
+    PrintCreateParent (schema, tablespace, parentname+"_1h", owner, insert);
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+void PrintCreateParent (std::string schema, std::string tablespace, std::string parentname, std::string owner, bool insert) {
+
     std::cout << "CREATE TABLE IF NOT EXISTS "+schema+"."+parentname+"\n"
             "(\n"
             "  datetime timestamp without time zone,\n"
@@ -61,16 +70,6 @@ void PrintCreateTable (std::string schema, std::string tablespace, std::string p
 
     if (!insert) {
 
-//        std::cout << "CREATE TABLE "+schema+"."+parentname+"\n"
-//                "(\n"
-//                "  datetime timestamp without time zone,\n"
-//                "  router_ip inet,\n"
-//                "  ip_addr inet,\n"
-//                "  in_bytes bigint,\n"
-//                "  out_bytes bigint,\n"
-//                "  type integer\n"
-//                ") "+tablespace+";\n"
-//                "ALTER TABLE "+schema+"."+parentname+" OWNER TO postgres;\n";
         return;
     }
     std::cout << "CREATE OR REPLACE FUNCTION "+schema+"."+parentname+"_partitioning() RETURNS trigger AS\n"
@@ -86,7 +85,7 @@ void PrintCreateTable (std::string schema, std::string tablespace, std::string p
               "begin\n"
               "        suffix := to_char(new.datetime, 'YYYYMM');\n"
               "        schema := '"+schema+"';\n"
-              "        relname := '"+parentname+"_1h_' || suffix;\n"
+              "        relname := '"+parentname+"_' || suffix;\n"
               "        EXECUTE 'SELECT EXISTS(SELECT * FROM information_schema.tables WHERE table_schema = ' || quote_literal(schema) || ' AND table_name = ' || quote_literal(relname) || ')' INTO rel_exists;\n"
               "        IF rel_exists = 'f'\n"
               "        THEN\n"
@@ -97,9 +96,11 @@ void PrintCreateTable (std::string schema, std::string tablespace, std::string p
               "                        'datetime >= ' || quote_literal(this_mon) || '::timestamp without time zone AND ' || \n"
               "                        'datetime < ' || quote_literal(next_mon) || '::timestamp without time zone)' || \n"
               "                        ') INHERITS ("+schema+"."+parentname+") WITH (OIDS=FALSE)';\n"
+              "\n"
+              "                EXECUTE 'CREATE INDEX ' || relname || '_datetime_idx ON ' || schema || '.' || relname || ' USING btree (datetime)';\n"
               "                EXECUTE 'CREATE UNIQUE INDEX ' || relname || '_idx ON ' || schema || '.' || relname || ' USING btree (datetime, ip_addr, type)';\n"
               "                EXECUTE 'ALTER TABLE ' || schema || '.' || relname || ' OWNER TO "+owner+"';\n"
-              "                EXECUTE 'GRANT ALL ON TABLE ' || schema || '.' || relname || ' TO "+owner+"';"
+              "                EXECUTE 'GRANT ALL ON TABLE ' || schema || '.' || relname || ' TO "+owner+"';\n"
               "        END IF;\n"
               "\n"
               "        EXECUTE 'SELECT EXISTS (SELECT * FROM ' || schema || '.' || relname || ' WHERE datetime=' || quote_literal(new.datetime) || ' AND ip_addr=' || quote_literal(new.ip_addr) || ' AND type=' || new.type || ')' INTO rec_exists;\n"
@@ -110,24 +111,6 @@ void PrintCreateTable (std::string schema, std::string tablespace, std::string p
               "                        USING new.datetime,new.router_ip,new.ip_addr,new.in_bytes,new.out_bytes,new.type;\n"
               "        ELSE\n"
               "                EXECUTE format('update ' || schema || '.' || relname || ' set in_bytes=in_bytes+$1, out_bytes=out_bytes+$2 where datetime=$3 and ip_addr=$4 and type=$5') USING new.in_bytes,new.out_bytes, new.datetime,new.ip_addr,new.type;\n"
-              "        END IF;\n"
-              "\n"
-              "        relname := '"+parentname+"_1d_' || suffix;\n"
-              "        EXECUTE 'SELECT EXISTS(SELECT * FROM information_schema.tables WHERE table_schema = ' || quote_literal(schema) || ' AND table_name = ' || quote_literal(relname) || ')' INTO rel_exists;\n"
-              "        IF rel_exists = 'f'\n"
-              "        THEN\n"
-              "                EXECUTE 'select date_trunc(''month'', TIMESTAMP ' || quote_literal(new.datetime) || ' );' INTO this_mon;\n"
-              "                EXECUTE 'select date_trunc(''month'', TIMESTAMP ' || quote_literal(new.datetime) || ' + INTERVAL ''1 MON'');' INTO next_mon;\n"
-              "\n"
-              "                EXECUTE 'CREATE TABLE ' || schema || '.' || relname || \n"
-              "                        ' (CONSTRAINT ' || relname || '_datetime_check CHECK (' || \n"
-              "                        'datetime >= ' || quote_literal(this_mon) || '::timestamp without time zone AND ' || \n"
-              "                        'datetime < ' || quote_literal(next_mon) || '::timestamp without time zone)' || \n"
-              "                        ') INHERITS ("+schema+"."+parentname+") WITH (OIDS=FALSE)';\n"
-              "\n"
-              "                EXECUTE 'CREATE UNIQUE INDEX ' || relname || '_idx ON ' || schema || '.' || relname || ' USING btree (datetime, ip_addr, type)';\n"
-              "                EXECUTE 'ALTER TABLE ' || schema || '.' || relname || ' OWNER TO "+owner+"';\n"
-              "                EXECUTE 'GRANT ALL ON TABLE ' || schema || '.' || relname || ' TO "+owner+"';"
               "        END IF;\n"
               "\n"
               "        return null;\n"
@@ -252,6 +235,7 @@ int main(int argc, char **argv) {
     NetStat nf(pgConn, schema, owner, logStream);
     if (!nf.error) {
 
+        parentname += "_1h";
         if (!nf.isProcessed(rfile,schema,parentname) || force) {
 
             LogInfo((char*)"Processing \"%s\" file", rfile);
