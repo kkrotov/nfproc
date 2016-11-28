@@ -97,7 +97,7 @@ void PrintCreateParent (std::string schema, std::string tablespace, std::string 
               "                        'datetime < ' || quote_literal(next_mon) || '::timestamp without time zone)' || \n"
               "                        ') INHERITS ("+schema+"."+parentname+") WITH (OIDS=FALSE)';\n"
               "\n"
-              "                EXECUTE 'CREATE INDEX ' || relname || '_datetime_idx ON ' || schema || '.' || relname || ' USING btree (datetime)';\n"
+//              "                EXECUTE 'CREATE INDEX ' || relname || '_datetime_idx ON ' || schema || '.' || relname || ' USING btree (datetime)';\n"
               "                EXECUTE 'CREATE UNIQUE INDEX ' || relname || '_idx ON ' || schema || '.' || relname || ' USING btree (datetime, ip_addr, type)';\n"
               "                EXECUTE 'ALTER TABLE ' || schema || '.' || relname || ' OWNER TO "+owner+"';\n"
               "                EXECUTE 'GRANT ALL ON TABLE ' || schema || '.' || relname || ' TO "+owner+"';\n"
