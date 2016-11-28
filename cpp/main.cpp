@@ -146,10 +146,10 @@ int main(int argc, char **argv) {
 //            case 'C':
 //                pg_conn_string = optarg;
 //                break;
-            case 'j':
-                UnCompress_file = optarg;
-                UnCompressFile(UnCompress_file);
-                exit(0);
+//            case 'j':
+//                UnCompress_file = optarg;
+//                UnCompressFile(UnCompress_file);
+//                exit(0);
             case 'i':
                 if (strcmp(optarg, "nitdb"))
                     usage();
