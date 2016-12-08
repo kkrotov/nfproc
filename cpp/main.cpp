@@ -11,7 +11,7 @@ FILE *logStream;
 void usage () {
 
 //    printf("nfproc -r nfcapd_file_path -C \"host=<address> dbname=<database_name> user=<user_id> password=<password>\"\n");
-    printf("nf2postgres -j data_file -c config_file_path -initdb -r nfcapd_file_path -f\n");
+    printf("nf2postgres -r data_file -c config_file_path -initdb -r nfcapd_file_path -f\n");
     exit(1);
 }
 
@@ -95,10 +95,10 @@ void PrintCreateParent (std::string schema, std::string tablespace, std::string 
               "                        ' (CONSTRAINT ' || relname || '_datetime_check CHECK (' || \n"
               "                        'datetime >= ' || quote_literal(this_mon) || '::timestamp without time zone AND ' || \n"
               "                        'datetime < ' || quote_literal(next_mon) || '::timestamp without time zone)' || \n"
-              "                        ') INHERITS ("+schema+"."+parentname+") WITH (OIDS=FALSE)';\n"
+              "                        ') INHERITS ("+schema+"."+parentname+") WITH (OIDS=FALSE) "+tablespace+"';\n"
               "\n"
 //              "                EXECUTE 'CREATE INDEX ' || relname || '_datetime_idx ON ' || schema || '.' || relname || ' USING btree (datetime)';\n"
-              "                EXECUTE 'CREATE UNIQUE INDEX ' || relname || '_idx ON ' || schema || '.' || relname || ' USING btree (datetime, ip_addr, type)';\n"
+              "                EXECUTE 'CREATE UNIQUE INDEX ' || relname || '_idx ON ' || schema || '.' || relname || ' USING btree (datetime, ip_addr, type) "+tablespace+"';\n"
               "                EXECUTE 'ALTER TABLE ' || schema || '.' || relname || ' OWNER TO "+owner+"';\n"
               "                EXECUTE 'GRANT ALL ON TABLE ' || schema || '.' || relname || ' TO "+owner+"';\n"
               "        END IF;\n"
